@@ -53,6 +53,16 @@ def handle_edit(data):
     emit('chat_update', {'messages': updated_messages, 'type': 'stop'})
     logger.info("Edit completed")
 
+@socketio.on('change_active_child')
+def handle_change_active_child(data):
+    level = data.get('level', 0)
+    direction = data.get('direction', 'next')
+    logger.info(f"Changing active child at level {level} in direction {direction}")
+    
+    updated_messages = chatbot.change_active_child(level, direction)
+    emit('chat_update', {'messages': updated_messages, 'type': 'navigation'})
+    logger.info("Navigation completed")
+
 @socketio.on('regenerate')
 def handle_regenerate():
     logger.info("Regenerating response")

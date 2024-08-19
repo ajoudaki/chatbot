@@ -11,11 +11,19 @@ class ChatNode:
         self.content = content
         self.children = []
         self.parent = None
+        self.active_child_index = 0
 
     def add_child(self, child):
         self.children.append(child)
         child.parent = self
         logger.debug(f"Added child node: {child.role}")
+
+    def get_sibling_info(self):
+        if self.parent:
+            siblings = self.parent.children
+            index = siblings.index(self)
+            return (index + 1, len(siblings))
+        return (1,1)  # Root node
 
 class ChatTree:
     def __init__(self):
@@ -26,6 +34,7 @@ class ChatTree:
     def add_message(self, role, content):
         new_node = ChatNode(role, content)
         self.current_node.add_child(new_node)
+        self.current_node.active_child_index = len(self.current_node.children) - 1
         self.current_node = new_node
         logger.info(f"Added new message: {role}")
         return new_node
@@ -34,7 +43,12 @@ class ChatTree:
         history = []
         node = self.current_node
         while node:
-            history.insert(0, {"role": node.role, "content": node.content})
+            sibling_info = node.get_sibling_info()
+            history.insert(0, {
+                "role": node.role,
+                "content": node.content,
+                "sibling_info": sibling_info
+            })
             node = node.parent
         logger.debug(f"Retrieved chat history: {len(history)} messages")
         return history
@@ -48,15 +62,44 @@ class ChatTree:
                 break
         
         if node.role == "user":
-            # Create a new branch
             new_user_node = ChatNode("user", new_content)
             node.parent.add_child(new_user_node)
+            node.parent.active_child_index = len(node.parent.children) - 1
             self.current_node = new_user_node
             logger.info(f"Created new branch at level {level} with content: {new_content}")
         else:
             logger.warning(f"Attempted to edit a non-user message at level {level}")
         
         return self.get_chat_history()
+
+    def change_active_child(self, level, direction):
+        node = self.current_node
+        for _ in range(level):
+            if node.parent:
+                node = node.parent
+            else:
+                break
+
+        parent = node.parent
+        if parent:
+            current_index = parent.active_child_index
+            if direction == "next":
+                parent.active_child_index = (current_index + 1) % len(parent.children)
+            elif direction == "prev":
+                parent.active_child_index = (current_index - 1) % len(parent.children)
+            
+            self.current_node = parent.children[parent.active_child_index]
+            
+            # Follow the chain of active children
+            while self.current_node.children:
+                self.current_node = self.current_node.children[self.current_node.active_child_index]
+            
+            logger.info(f"Changed active child to index {parent.active_child_index} and followed to leaf")
+        else:
+            logger.warning("Attempted to change active child of root node")
+
+        return self.get_chat_history()
+
 
 class ChatBot:
     def __init__(self, model_id="meta-llama/Meta-Llama-3.1-8B-Instruct"):
@@ -132,6 +175,8 @@ class ChatBot:
         self.chat_tree.add_message("assistant", "")
         return self.generate_response(updated_history)
 
+    def change_active_child(self, level, direction):
+        return self.chat_tree.change_active_child(level, direction)
 
     def regenerate(self):
         logger.info("Regenerating response")
