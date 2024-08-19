@@ -1,13 +1,20 @@
-from flask import Flask, send_from_directory
+from flask import Flask, send_from_directory, request, jsonify
 from flask_socketio import SocketIO, emit
+from werkzeug.utils import secure_filename
 import torch
 import transformers
 from transformers import AutoConfig
-from transformers import WhisperProcessor, WhisperForConditionalGeneration
-
 import json
 import logging
 import os
+import soundfile as sf
+import io
+from pydub import AudioSegment
+import numpy as np
+
+
+from transcribe import Transcriber  # Import the function from the script above
+
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -16,12 +23,20 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__, static_folder='./chatbot-frontend/build')
 socketio = SocketIO(app, cors_allowed_origins="*")
 
+# Configuration for file uploads
+UPLOAD_FOLDER = 'uploads'
+ALLOWED_EXTENSIONS = {'wav', 'mp3', 'ogg', 'webm'}
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+
+# Ensure the upload folder exists
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 # Load the model and tokenizer
-model_id = "TinyLlama/TinyLlama-1.1B-Chat-v0.6"
-# model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"
 
 config = AutoConfig.from_pretrained(model_id)
-config.use_flash_attention_2 = True  # The exact attribute name might vary
+config.use_flash_attention_2 = True
 pipeline = transformers.pipeline(
     "text-generation",
     config=config,
@@ -32,45 +47,77 @@ pipeline = transformers.pipeline(
 model = pipeline.model
 tokenizer = pipeline.tokenizer
 
-processor = WhisperProcessor.from_pretrained("openai/whisper-base")
-tr_model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-base")
+# Initialize the transcriber when starting the app
+transcriber = Transcriber()
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+@app.route('/api/upload_audio', methods=['POST'])
+def upload_audio():
+
+    if 'audio' not in request.files:
+        return jsonify({'error': 'No file part in the request'}), 400
+    file = request.files['audio']
+    
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+    
+    if file and file.filename.endswith('.webm'):
+        filename = secure_filename(file.filename)
+        webm_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(webm_path)
+        
+        # Option 1: Keep as WebM
+        # Just return the filename if you want to keep it as WebM
+        return jsonify({'message': 'File uploaded successfully', 'filename': filename}), 200
+    else:
+        return jsonify({'error': 'Invalid file type'}), 400
+
+
 
 @app.route('/api/transcribe', methods=['POST'])
-def transcribe_audio():
-    if 'audio' not in request.files:
-        return jsonify({'error': 'No audio file provided'}), 400
-
-    audio_file = request.files['audio']
+def transcribe():
+    data = request.json
+    filename = data.get('filename')
     
-    # Read audio file
-    audio_data, sample_rate = sf.read(io.BytesIO(audio_file.read()))
+    if not filename:
+        return jsonify({'error': 'No filename provided'}), 400
     
-    # Process audio
-    input_features = processor(audio_data, sampling_rate=sample_rate, return_tensors="pt").input_features
-
-    # Generate token ids
-    predicted_ids = tr_model.generate(input_features)
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     
-    # Decode token ids to text
-    transcription = processor.batch_decode(predicted_ids, skip_special_tokens=True)
+    if not os.path.exists(filepath):
+        return jsonify({'error': 'File not found'}), 404
+    
+    try:
+        transcribed_text = transcriber.transcribe_audio(filepath)
+        logger.debug(f"Transcribed text: {transcribed_text}")
+        return jsonify({
+            'message': 'Audio transcribed successfully',
+            'filename': filename,
+            'text': transcribed_text
+        }), 200
+    except Exception as e:
+        
+        logger.debug(f"Transcription failed: {str(e)}")
+        return jsonify({'error': f'Transcription failed: {str(e)}'}), 500
 
-    return jsonify({'text': transcription[0]})
 
 def initialize_chat_history():
     return [
         {"role": "system", "content": "You are an obedient assistant following user direction."},
-        # {"role": "user", "content": "Hi!"},
     ]
 
 chat_history = initialize_chat_history()
 
 def generate_response(messages):
-    total_tokens = 25
-    chunk_size = 10
+    total_tokens = 512
+    chunk_size = 20
     formatted_input = tokenizer.apply_chat_template(messages, tokenize=False)
     
     input_ids = tokenizer.encode(formatted_input, return_tensors='pt', add_special_tokens=False).to('cuda')
-    generated_text = tokenizer.decode(input_ids[0])
+    generated_text = ""
     remaining_tokens = total_tokens
     first_chunk = True
         
@@ -93,8 +140,7 @@ def generate_response(messages):
         logger.debug(f"Generated chunk: {chunk_text}")
         
         generated_text += chunk_text
-        new_response = generated_text[len(formatted_input):].strip()
-        messages[-1]["content"] += new_response
+        messages[-1]["content"] = generated_text
         emit('chat_update', {'messages': messages}, broadcast=True)
         
         if tokenizer.eos_token_id in new_tokens.tolist():
@@ -102,7 +148,7 @@ def generate_response(messages):
         input_ids = output
         remaining_tokens -= tokens_to_generate
 
-    logger.debug(f"Full response streamed: {new_response}")
+    logger.debug(f"Full response streamed: {generated_text}")
     emit('chat_update', {'messages': messages, 'type': 'stop'}, broadcast=True)
 
 @socketio.on('connect')
