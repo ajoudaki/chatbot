@@ -23,7 +23,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Initialize the transcriber and chatbot when starting the app
-transcriber = Transcriber('openai/whisper-large-v3')
+# transcriber = Transcriber('openai/whisper-base')
 chatbot = ChatBot()
 
 def allowed_file(filename):

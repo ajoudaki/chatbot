@@ -189,7 +189,7 @@ class ChatBot:
             "text-generation",
             config=self.config,
             model=self.model_id,
-            model_kwargs={"torch_dtype": torch.bfloat16},
+            model_kwargs={"torch_dtype": torch.bfloat16,"load_in_8bit": True},
             device_map="auto",
         )
         self.model = self.pipeline.model
@@ -228,7 +228,7 @@ class ChatBot:
 
     def generate_response(self, messages):
         logger.info("Generating response")
-        total_tokens = 512
+        total_tokens = 256
         chunk_size = 20
         formatted_input = self.tokenizer.apply_chat_template(messages, tokenize=False)
         
@@ -266,6 +266,9 @@ class ChatBot:
             remaining_tokens -= tokens_to_generate
 
         logger.debug(f"Full response generated: {generated_text}")
+        # Final GPU memory cleanup
+        del input_ids
+        torch.cuda.empty_cache()
 
     def chat(self, user_message):
         logger.info(f"Processing chat: {user_message[:50]}...")
