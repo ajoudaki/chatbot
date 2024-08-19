@@ -96,8 +96,7 @@ const ChatbotClient = () => {
     
           const data = await response.json();
           const uploadedFilename = data.filename;
-          messageContent = `[Audio: ${uploadedFilename}]`;
-          messageContent = ``;
+          messageContent = '';
     
           // Optionally, you can add transcription here if your backend supports it
           const transcriptionResponse = await fetch('/api/transcribe', {
@@ -109,7 +108,7 @@ const ChatbotClient = () => {
           });
           if (transcriptionResponse.ok) {
             const transcriptionData = await transcriptionResponse.json();
-            messageContent += ` (Transcription: ${transcriptionData.text})`;
+            messageContent = transcriptionData.text;
           }
     
         } catch (error) {
