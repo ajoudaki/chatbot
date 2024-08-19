@@ -4,7 +4,6 @@ import { CopyOutlined, SendOutlined, RedoOutlined, EditOutlined, AudioOutlined, 
 import io from 'socket.io-client';
 import { v4 as uuidv4 } from 'uuid';
 
-
 const { Title, Text } = Typography;
 const { Header, Content, Footer } = Layout;
 
@@ -24,178 +23,221 @@ const ChatbotClient = () => {
   const audioRef = useRef(null);
 
   useEffect(() => {
+    console.log('ChatbotClient: Initializing');
     const newSocket = io('/');
     setSocket(newSocket);
 
+    newSocket.on('connect', () => {
+      console.log('Socket connected');
+    });
+
     newSocket.on('chat_history', (data) => {
+      console.log('Received chat history:', data.messages);
       setMessages(data.messages);
     });
 
     newSocket.on('chat_update', (data) => {
+      console.log('Received chat update:', data);
       setMessages(data.messages);
-      setIsLoading(false);
+      setIsLoading(data.type !== 'stop');
     });
 
-    return () => newSocket.close();
+    return () => {
+      console.log('ChatbotClient: Cleaning up');
+      newSocket.close();
+    };
   }, []);
 
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      // console.log('Scrolled chat to bottom');
     }
   }, [messages]);
 
-    const uploadAudio = async (audioBlob) => {
-      console.log("Audio blob size:", audioBlob.size);
-      const formData = new FormData();
-      formData.append('audio', audioBlob, 'recording.wav');
+  const uploadAudio = async (audioBlob) => {
+    console.log("Uploading audio blob, size:", audioBlob.size);
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'recording.wav');
+  
+    try {
+      const response = await fetch('/api/upload_audio', {
+        method: 'POST',
+        body: formData,
+      });
+  
+      if (!response.ok) {
+        throw new Error('Failed to upload audio');
+      }
+  
+      const data = await response.json();
+      console.log('Audio uploaded successfully:', data.filename);
+      return data.filename;
+    } catch (error) {
+      console.error('Failed to upload audio:', error);
+      antdMessage.error('Failed to upload audio: ' + error.message);
+      throw error;
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (inputMessage.trim() === '' && !audioBlob) {
+      console.warn('Attempted to submit empty message');
+      return;
+    }
     
+    console.log('Submitting message:', inputMessage || 'Audio message');
+    setIsLoading(true);
+    let messageContent = inputMessage;
+  
+    if (audioBlob) {
       try {
+        const timestamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0];
+        const randomId = uuidv4().split('-')[0];
+        const filename = `audio_${timestamp}_${randomId}.webm`;
+  
+        const formData = new FormData();
+        formData.append('audio', audioBlob, filename);
+        
+        console.log('Uploading audio file:', filename);
         const response = await fetch('/api/upload_audio', {
           method: 'POST',
           body: formData,
         });
-    
+  
         if (!response.ok) {
           throw new Error('Failed to upload audio');
         }
-    
+  
         const data = await response.json();
-        return data.filename;
-      } catch (error) {
-        antdMessage.error('Failed to upload audio: ' + error.message);
-        throw error;
-      }
-    };
-
-    const handleSubmit = async (e) => {
-      e.preventDefault();
-      if (inputMessage.trim() === '' && !audioBlob) return;
-      
-      setIsLoading(true);
-      let messageContent = inputMessage;
-    
-      if (audioBlob) {
-        try {
-          // Generate a unique filename
-          const timestamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0];
-          const randomId = uuidv4().split('-')[0]; // Using first part of UUID for brevity
-          const filename = `audio_${timestamp}_${randomId}.webm`;
-    
-          const formData = new FormData();
-          formData.append('audio', audioBlob, filename);
-          
-          const response = await fetch('/api/upload_audio', {
-            method: 'POST',
-            body: formData,
-          });
-    
-          if (!response.ok) {
-            throw new Error('Failed to upload audio');
-          }
-    
-          const data = await response.json();
-          const uploadedFilename = data.filename;
-          messageContent = '';
-    
-          // Optionally, you can add transcription here if your backend supports it
-          const transcriptionResponse = await fetch('/api/transcribe', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ filename: uploadedFilename }),
-          });
-          if (transcriptionResponse.ok) {
-            const transcriptionData = await transcriptionResponse.json();
-            messageContent = transcriptionData.text;
-          }
-    
-        } catch (error) {
-          console.error('Error uploading audio:', error);
-          antdMessage.error('Failed to upload audio. Please try again.');
-          setIsLoading(false);
-          return;
+        const uploadedFilename = data.filename;
+        console.log('Audio uploaded successfully:', uploadedFilename);
+        messageContent = '';
+  
+        console.log('Transcribing audio:', uploadedFilename);
+        const transcriptionResponse = await fetch('/api/transcribe', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ filename: uploadedFilename }),
+        });
+        if (transcriptionResponse.ok) {
+          const transcriptionData = await transcriptionResponse.json();
+          messageContent = transcriptionData.text;
+          console.log('Audio transcribed:', messageContent);
+        } else {
+          console.error('Transcription failed');
         }
+  
+      } catch (error) {
+        console.error('Error processing audio:', error);
+        antdMessage.error('Failed to process audio. Please try again.');
+        setIsLoading(false);
+        return;
       }
-    
-      const newMessages = [...messages, { role: 'user', content: messageContent }];
-      setMessages(newMessages);
-      socket.emit('chat_message', { messages: newMessages });
-      setInputMessage('');
-      setAudioBlob(null);
-      setIsLoading(false);
-    };
+    }
+  
+    console.log('Emitting chat message:', messageContent);
+    socket.emit('chat', { message: messageContent });
+    setInputMessage('');
+    setAudioBlob(null);
+  };
+
   const handleContinue = () => {
+    console.log('Continuing chat');
     setIsLoading(true);
-    socket.emit('continue_chat', { messages: messages });
+    socket.emit('continue');
   };
 
   const handleReset = () => {
+    console.log('Resetting chat');
     socket.emit('reset_chat');
     setMessages([]);
     antdMessage.success('Chat history reset');
   };
 
   const handleCopy = (content) => {
+    console.log('Copying content to clipboard');
     navigator.clipboard.writeText(content)
-      .then(() => antdMessage.success('Content copied to clipboard'))
-      .catch(() => antdMessage.error('Failed to copy content'));
+      .then(() => {
+        console.log('Content copied successfully');
+        antdMessage.success('Content copied to clipboard');
+      })
+      .catch((error) => {
+        console.error('Failed to copy content:', error);
+        antdMessage.error('Failed to copy content');
+      });
   };
 
   const handleEdit = (index) => {
+    console.log('Editing message at index:', index);
     setEditingIndex(index);
     setEditContent(messages[index].content);
   };
 
-  const handleEditSubmit = () => {
-    if (editContent.trim() === '') return;
+    const handleEditSubmit = () => {
+      if (editContent.trim() === '') {
+        console.warn('Attempted to submit empty edit');
+        return;
+      }
+    
+      console.log(`Submitting edit for message at index ${editingIndex} with new content:`, editContent);
+      
+      socket.emit('edit', { 
+        level: messages.length - editingIndex - 1, 
+        message: editContent 
+      });
+      
+      setEditingIndex(-1);
+      setEditContent('');
+      setIsLoading(true); // Add this line to show loading state
+    };
 
-    const updatedMessages = [...messages];
-    updatedMessages[editingIndex].content = editContent;
-
-    setMessages(updatedMessages);
-    setEditingIndex(-1);
-    setEditContent('');
-
-    socket.emit('chat_message', { messages: updatedMessages.slice(0, editingIndex + 1) });
+  const handleRegenerate = () => {
+    console.log('Regenerating response');
+    setIsLoading(true);
+    socket.emit('regenerate');
   };
 
-const startRecording = async () => {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ 
-      audio: { 
-        sampleRate: 48000,  // Opus works well with this sample rate
-        channelCount: 1,    // Mono for simplicity
-        echoCancellation: false,
-        noiseSuppression: false
-      } 
-    });
-    
-    const options = { mimeType: 'audio/webm;codecs=opus' };
-    mediaRecorderRef.current = new MediaRecorder(stream, options);
-    
-    const audioChunks = [];
+  const startRecording = async () => {
+    try {
+      console.log('Starting audio recording');
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: { 
+          sampleRate: 48000,
+          channelCount: 1,
+          echoCancellation: false,
+          noiseSuppression: false
+        } 
+      });
+      
+      const options = { mimeType: 'audio/webm;codecs=opus' };
+      mediaRecorderRef.current = new MediaRecorder(stream, options);
+      
+      const audioChunks = [];
 
-    mediaRecorderRef.current.ondataavailable = (event) => {
-      audioChunks.push(event.data);
-    };
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        audioChunks.push(event.data);
+      };
 
-    mediaRecorderRef.current.onstop = () => {
-      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-      console.log("Audio blob size:", audioBlob.size);
-      setAudioBlob(audioBlob);
-    };
+      mediaRecorderRef.current.onstop = () => {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        console.log("Audio recording completed, blob size:", audioBlob.size);
+        setAudioBlob(audioBlob);
+      };
 
-    mediaRecorderRef.current.start();
-    setIsRecording(true);
-  } catch (error) {
-    console.error('Failed to start recording:', error);
-  }
-};
+      mediaRecorderRef.current.start();
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+    }
+  };
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
+      console.log('Stopping audio recording');
       mediaRecorderRef.current.stop();
       setIsRecording(false);
     }
@@ -203,6 +245,7 @@ const startRecording = async () => {
 
   const playRecording = () => {
     if (audioBlob) {
+      console.log('Playing audio recording');
       const audioUrl = URL.createObjectURL(audioBlob);
       audioRef.current.src = audioUrl;
       audioRef.current.play();
@@ -212,6 +255,7 @@ const startRecording = async () => {
 
   const pauseRecording = () => {
     if (audioRef.current) {
+      console.log('Pausing audio playback');
       audioRef.current.pause();
       setIsPlaying(false);
     }
@@ -219,6 +263,7 @@ const startRecording = async () => {
 
   const renderMessage = (item, index) => {
     if (index === editingIndex && item.role === 'user') {
+      // console.log('Rendering editable message:', item);
       return (
         <Space direction="vertical" style={{ width: '100%' }}>
           <Input.TextArea
@@ -240,6 +285,7 @@ const startRecording = async () => {
       );
     }
 
+    // console.log('Rendering message:', item);
     return (
       <>
         <div
@@ -338,11 +384,17 @@ const startRecording = async () => {
             <Button onClick={handleContinue} icon={<RedoOutlined />} loading={isLoading}>
               Continue
             </Button>
+            <Button onClick={handleRegenerate} icon={<RedoOutlined />} loading={isLoading}>
+              Regenerate
+            </Button>
           </Space.Compact>
         </Space>
       </Content>
-      <Footer style={{ textAlign: 'center' }}>Chatbot ©2024 Created by Your Name</Footer>
-      <audio ref={audioRef} onEnded={() => setIsPlaying(false)} />
+      <Footer style={{ textAlign: 'center' }}>Chatbot ©2024 Created by Amir Joudaki</Footer>
+      <audio ref={audioRef} onEnded={() => {
+        console.log('Audio playback ended');
+        setIsPlaying(false);
+      }} />
     </Layout>
   );
 };

@@ -5,9 +5,63 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+class ChatNode:
+    def __init__(self, role, content):
+        self.role = role
+        self.content = content
+        self.children = []
+        self.parent = None
+
+    def add_child(self, child):
+        self.children.append(child)
+        child.parent = self
+        logger.debug(f"Added child node: {child.role}")
+
+class ChatTree:
+    def __init__(self):
+        self.root = ChatNode("system", "You are an obedient assistant following user direction.")
+        self.current_node = self.root
+        logger.info("Initialized ChatTree")
+
+    def add_message(self, role, content):
+        new_node = ChatNode(role, content)
+        self.current_node.add_child(new_node)
+        self.current_node = new_node
+        logger.info(f"Added new message: {role}")
+        return new_node
+
+    def get_chat_history(self):
+        history = []
+        node = self.current_node
+        while node:
+            history.insert(0, {"role": node.role, "content": node.content})
+            node = node.parent
+        logger.debug(f"Retrieved chat history: {len(history)} messages")
+        return history
+
+    def edit_message(self, level, new_content):
+        node = self.current_node
+        for _ in range(level):
+            if node.parent:
+                node = node.parent
+            else:
+                break
+        
+        if node.role == "user":
+            # Create a new branch
+            new_user_node = ChatNode("user", new_content)
+            node.parent.add_child(new_user_node)
+            self.current_node = new_user_node
+            logger.info(f"Created new branch at level {level} with content: {new_content}")
+        else:
+            logger.warning(f"Attempted to edit a non-user message at level {level}")
+        
+        return self.get_chat_history()
+
 class ChatBot:
     def __init__(self, model_id="meta-llama/Meta-Llama-3.1-8B-Instruct"):
         self.model_id = model_id
+        logger.info(f"Initializing ChatBot with model: {model_id}")
         self.config = AutoConfig.from_pretrained(model_id)
         self.config.use_flash_attention_2 = True
         self.pipeline = transformers.pipeline(
@@ -19,14 +73,14 @@ class ChatBot:
         )
         self.model = self.pipeline.model
         self.tokenizer = self.pipeline.tokenizer
-        self.chat_history = self.initialize_chat_history()
+        self.chat_tree = ChatTree()
+        logger.info("ChatBot initialization complete")
 
-    def initialize_chat_history(self):
-        return [
-            {"role": "system", "content": "You are an obedient assistant following user direction."},
-        ]
+    def get_chat_history(self):
+        return self.chat_tree.get_chat_history()
 
     def generate_response(self, messages):
+        logger.info("Generating response")
         total_tokens = 512
         chunk_size = 20
         formatted_input = self.tokenizer.apply_chat_template(messages, tokenize=False)
@@ -38,6 +92,7 @@ class ChatBot:
             
         while remaining_tokens > 0:
             tokens_to_generate = min(chunk_size, remaining_tokens)
+            logger.debug(f"Generating {tokens_to_generate} tokens")
             with torch.no_grad():
                 output = self.model.generate(
                     input_ids, 
@@ -52,37 +107,47 @@ class ChatBot:
                 chunk_text = chunk_text.lstrip("assistant").lstrip()
                 first_chunk = False
             
-            logger.debug(f"Generated chunk: {chunk_text}")
-            
             generated_text += chunk_text
-            messages[-1]["content"] = generated_text
+            self.chat_tree.current_node.content = generated_text
             
-            yield messages  # Yield the updated messages for each chunk
+            yield self.get_chat_history()
             
             if self.tokenizer.eos_token_id in new_tokens.tolist():
+                logger.info("EOS token encountered, stopping generation")
                 break
             input_ids = output
             remaining_tokens -= tokens_to_generate
 
-        logger.debug(f"Full response streamed: {generated_text}")
+        logger.debug(f"Full response generated: {generated_text}")
 
-    def handle_message(self, messages):
-        if not messages:
-            return
+    def chat(self, user_message):
+        logger.info(f"Processing chat: {user_message[:50]}...")
+        self.chat_tree.add_message("user", user_message)
+        self.chat_tree.add_message("assistant", "")
+        return self.generate_response(self.get_chat_history())
 
-        self.chat_history = messages
-        self.chat_history.append({"role": "assistant", "content": ""})
-        return self.generate_response(self.chat_history)
+    def edit(self, level, new_message):
+        logger.info(f"Editing message at level {level}")
+        updated_history = self.chat_tree.edit_message(level, new_message)
+        self.chat_tree.add_message("assistant", "")
+        return self.generate_response(updated_history)
 
-    def handle_continue(self, messages):
-        if not messages:
-            return
 
-        self.chat_history = messages
-        if self.chat_history[-1]['role'] != 'assistant':
-            self.chat_history.append({"role": "assistant", "content": ""})
-        return self.generate_response(self.chat_history)
+    def regenerate(self):
+        logger.info("Regenerating response")
+        if self.chat_tree.current_node.role != "assistant":
+            self.chat_tree.add_message("assistant", "")
+        return self.generate_response(self.get_chat_history())
+
+    def continue_chat(self):
+        logger.info("Continuing chat")
+        if self.chat_tree.current_node.role != "assistant":
+            self.chat_tree.add_message("assistant", "")
+        else:
+            self.chat_tree.current_node.content += " "
+        return self.generate_response(self.get_chat_history())
 
     def reset_chat(self):
-        self.chat_history = self.initialize_chat_history()
-        return self.chat_history
+        logger.info("Resetting chat")
+        self.chat_tree = ChatTree()
+        return self.get_chat_history()

@@ -6,9 +6,9 @@ from pydub import AudioSegment
 import os
 
 class Transcriber:
-    def __init__(self, model_name="openai/whisper-base"):
-        self.processor = WhisperProcessor.from_pretrained(model_name)
-        self.model = WhisperForConditionalGeneration.from_pretrained(model_name)
+    def __init__(self, model_id="openai/whisper-base"):
+        self.processor = WhisperProcessor.from_pretrained(model_id)
+        self.model = WhisperForConditionalGeneration.from_pretrained(model_id)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model = self.model.to(self.device)
         print(f"Model loaded and running on {self.device}")

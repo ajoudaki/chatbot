@@ -1,13 +1,13 @@
+import logging
 from flask import Flask, send_from_directory, request, jsonify
 from flask_socketio import SocketIO, emit
 from werkzeug.utils import secure_filename
-import logging
 import os
 from transcribe import Transcriber
 from chatbot import ChatBot
 
 # Set up logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__, static_folder='./frontend/build')
@@ -23,44 +23,100 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Initialize the transcriber and chatbot when starting the app
-transcriber = Transcriber()
+transcriber = Transcriber('openai/whisper-large-v3')
 chatbot = ChatBot()
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+@socketio.on('connect')
+def handle_connect():
+    logger.info("Client connected")
+    emit('chat_history', {'messages': chatbot.get_chat_history()})
+
+@socketio.on('chat')
+def handle_chat(data):
+    user_message = data.get('message', '')
+    logger.info(f"Received chat message: {user_message}")
+    for updated_messages in chatbot.chat(user_message):
+        emit('chat_update', {'messages': updated_messages})
+    emit('chat_update', {'messages': updated_messages, 'type': 'stop'})
+    logger.info("Chat response completed")
+
+@socketio.on('edit')
+def handle_edit(data):
+    level = data.get('level', 0)
+    new_message = data.get('message', '')
+    logger.info(f"Editing message at level {level}: {new_message}")
+    for updated_messages in chatbot.edit(level, new_message):
+        emit('chat_update', {'messages': updated_messages})
+    emit('chat_update', {'messages': updated_messages, 'type': 'stop'})
+    logger.info("Edit completed")
+
+@socketio.on('regenerate')
+def handle_regenerate():
+    logger.info("Regenerating response")
+    for updated_messages in chatbot.regenerate():
+        emit('chat_update', {'messages': updated_messages})
+    emit('chat_update', {'messages': updated_messages, 'type': 'stop'})
+    logger.info("Regeneration completed")
+
+@socketio.on('continue')
+def handle_continue():
+    logger.info("Continuing chat")
+    for updated_messages in chatbot.continue_chat():
+        emit('chat_update', {'messages': updated_messages})
+    emit('chat_update', {'messages': updated_messages, 'type': 'stop'})
+    logger.info("Continuation completed")
+
+@socketio.on('reset_chat')
+def reset_chat():
+    logger.info("Resetting chat")
+    chat_history = chatbot.reset_chat()
+    emit('chat_history', {'messages': chat_history})
+    logger.info("Chat reset completed")
+
 @app.route('/api/upload_audio', methods=['POST'])
 def upload_audio():
+    logger.info("Received audio upload request")
     if 'audio' not in request.files:
+        logger.warning("No file part in the request")
         return jsonify({'error': 'No file part in the request'}), 400
     file = request.files['audio']
     
     if file.filename == '':
+        logger.warning("No selected file")
         return jsonify({'error': 'No selected file'}), 400
     
     if file and file.filename.endswith('.webm'):
         filename = secure_filename(file.filename)
         webm_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(webm_path)
+        logger.info(f"File uploaded successfully: {filename}")
         return jsonify({'message': 'File uploaded successfully', 'filename': filename}), 200
     else:
+        logger.warning("Invalid file type")
         return jsonify({'error': 'Invalid file type'}), 400
 
 @app.route('/api/transcribe', methods=['POST'])
 def transcribe():
+    logger.info("Received transcription request")
     data = request.json
     filename = data.get('filename')
     
     if not filename:
+        logger.warning("No filename provided")
         return jsonify({'error': 'No filename provided'}), 400
     
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     
     if not os.path.exists(filepath):
+        logger.warning(f"File not found: {filepath}")
         return jsonify({'error': 'File not found'}), 404
     
     try:
         transcribed_text = transcriber.transcribe_audio(filepath)
+        logger.info(f"Audio transcribed successfully: {filename}")
         logger.debug(f"Transcribed text: {transcribed_text}")
         return jsonify({
             'message': 'Audio transcribed successfully',
@@ -68,31 +124,8 @@ def transcribe():
             'text': transcribed_text
         }), 200
     except Exception as e:
-        logger.debug(f"Transcription failed: {str(e)}")
+        logger.error(f"Transcription failed: {str(e)}", exc_info=True)
         return jsonify({'error': f'Transcription failed: {str(e)}'}), 500
-
-@socketio.on('connect')
-def handle_connect():
-    emit('chat_history', {'messages': chatbot.chat_history})
-
-@socketio.on('chat_message')
-def handle_message(data):
-    messages = data.get('messages', [])
-    for updated_messages in chatbot.handle_message(messages):
-        emit('chat_update', {'messages': updated_messages})
-    emit('chat_update', {'messages': updated_messages, 'type': 'stop'})
-
-@socketio.on('continue_chat')
-def handle_continue(data):
-    messages = data.get('messages', [])
-    for updated_messages in chatbot.handle_continue(messages):
-        emit('chat_update', {'messages': updated_messages})
-    emit('chat_update', {'messages': updated_messages, 'type': 'stop'})
-
-@socketio.on('reset_chat')
-def reset_chat():
-    chat_history = chatbot.reset_chat()
-    emit('chat_history', {'messages': chat_history})
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
@@ -113,4 +146,5 @@ def not_found(e):
 if __name__ == '__main__':
     logger.info(f"Static folder path: {app.static_folder}")
     logger.info(f"Index file exists: {os.path.exists(os.path.join(app.static_folder, 'index.html'))}")
+    logger.info("Starting the application")
     socketio.run(app, debug=True)
