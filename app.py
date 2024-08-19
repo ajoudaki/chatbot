@@ -10,7 +10,7 @@ from chatbot import ChatBot
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__, static_folder='./chatbot-frontend/build')
+app = Flask(__name__, static_folder='./frontend/build')
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Configuration for file uploads
