@@ -2,6 +2,9 @@ import torch
 import transformers
 from transformers import AutoConfig
 import logging
+import json
+import os
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -23,13 +26,32 @@ class ChatNode:
             siblings = self.parent.children
             index = siblings.index(self)
             return (index + 1, len(siblings))
-        return (1,1)  # Root node
+        return (1, 1)  # Root node
+
+    def to_dict(self):
+        return {
+            'role': self.role,
+            'content': self.content,
+            'children': [child.to_dict() for child in self.children],
+            'active_child_index': self.active_child_index
+        }
+
+    @classmethod
+    def from_dict(cls, data, parent=None):
+        node = cls(data['role'], data['content'])
+        node.parent = parent
+        node.active_child_index = data['active_child_index']
+        for child_data in data['children']:
+            child = cls.from_dict(child_data, parent=node)
+            node.children.append(child)
+        return node
 
 class ChatTree:
     def __init__(self):
         self.root = ChatNode("system", "You are an obedient assistant following user direction.")
         self.current_node = self.root
-        logger.info("Initialized ChatTree")
+        self.chat_id = str(uuid.uuid4())  # Generate a random UUID for this chat session
+        logger.info(f"Initialized ChatTree with ID: {self.chat_id}")
 
     def add_message(self, role, content):
         new_node = ChatNode(role, content)
@@ -113,10 +135,49 @@ class ChatTree:
 
         return self.get_chat_history()
 
+    def to_dict(self):
+        return {
+            'chat_id': self.chat_id,
+            'root': self.root.to_dict(),
+            'current_node_path': self._get_current_node_path()
+        }
+
+    def _get_current_node_path(self):
+        path = []
+        node = self.current_node
+        while node.parent:
+            path.append(node.parent.children.index(node))
+            node = node.parent
+        return list(reversed(path))
+
+    @classmethod
+    def from_dict(cls, data):
+        chat_tree = cls()
+        chat_tree.chat_id = data['chat_id']
+        chat_tree.root = ChatNode.from_dict(data['root'])
+        
+        # Restore current node
+        current_node = chat_tree.root
+        for index in data['current_node_path']:
+            current_node = current_node.children[index]
+        chat_tree.current_node = current_node
+        
+        return chat_tree
+
+    def to_json(self):
+        return json.dumps(self.to_dict(), indent=2)
+
+    @classmethod
+    def from_json(cls, json_str):
+        data = json.loads(json_str)
+        return cls.from_dict(data)
 
 class ChatBot:
-    def __init__(self, model_id="meta-llama/Meta-Llama-3.1-8B-Instruct"):
+    def __init__(self, model_id="meta-llama/Meta-Llama-3.1-8B-Instruct", chat_dir="chat_history"):
         self.model_id = model_id
+        self.chat_dir = chat_dir
+        if not os.path.exists(self.chat_dir):
+            os.makedirs(self.chat_dir)
         logger.info(f"Initializing ChatBot with model: {model_id}")
         self.config = AutoConfig.from_pretrained(model_id)
         self.config.use_flash_attention_2 = True
@@ -208,3 +269,35 @@ class ChatBot:
         logger.info("Resetting chat")
         self.chat_tree = ChatTree()
         return self.get_chat_history()
+
+    def save_chat_tree(self):
+        filename = f"{self.chat_tree.chat_id}.json"
+        filepath = os.path.join(self.chat_dir, filename)
+        with open(filepath, 'w') as f:
+            json.dump(self.chat_tree.to_dict(), f, indent=2)
+        logger.info(f"Chat tree saved to {filepath}")
+        return filepath
+
+    def load_chat_tree(self, chat_id):
+        filename = f"{chat_id}.json"
+        filepath = os.path.join(self.chat_dir, filename)
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"No chat history found for ID: {chat_id}")
+        with open(filepath, 'r') as f:
+            data = json.load(f)
+        self.chat_tree = ChatTree.from_dict(data)
+        logger.info(f"Chat tree loaded from {filepath}")
+        return self.get_chat_history()
+
+    def list_chat_histories(self):
+        chat_files = [f for f in os.listdir(self.chat_dir) if f.endswith('.json')]
+        chat_ids = [os.path.splitext(f)[0] for f in chat_files]
+        return chat_ids
+
+    def start_new_chat(self):
+        self.chat_tree = ChatTree()
+        logger.info(f"Started new chat with ID: {self.chat_tree.chat_id}")
+        return self.chat_tree.chat_id
+
+    def get_current_chat_id(self):
+        return self.chat_tree.chat_id
