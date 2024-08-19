@@ -50,7 +50,8 @@ class ChatTree:
     def __init__(self):
         self.root = ChatNode("system", "You are an obedient assistant following user direction.")
         self.current_node = self.root
-        self.chat_id = str(uuid.uuid4())  # Generate a random UUID for this chat session
+        self.chat_id = str(uuid.uuid4())
+        self.chat_name = ""  # New attribute to store the chat name
         logger.info(f"Initialized ChatTree with ID: {self.chat_id}")
 
     def add_message(self, role, content):
@@ -135,25 +136,20 @@ class ChatTree:
 
         return self.get_chat_history()
 
+
     def to_dict(self):
         return {
             'chat_id': self.chat_id,
+            'chat_name': self.chat_name,
             'root': self.root.to_dict(),
             'current_node_path': self._get_current_node_path()
         }
-
-    def _get_current_node_path(self):
-        path = []
-        node = self.current_node
-        while node.parent:
-            path.append(node.parent.children.index(node))
-            node = node.parent
-        return list(reversed(path))
 
     @classmethod
     def from_dict(cls, data):
         chat_tree = cls()
         chat_tree.chat_id = data['chat_id']
+        chat_tree.chat_name = data.get('chat_name')  # Use get() in case older chat trees don't have this field
         chat_tree.root = ChatNode.from_dict(data['root'])
         
         # Restore current node
@@ -163,6 +159,14 @@ class ChatTree:
         chat_tree.current_node = current_node
         
         return chat_tree
+
+    def _get_current_node_path(self):
+        path = []
+        node = self.current_node
+        while node.parent:
+            path.append(node.parent.children.index(node))
+            node = node.parent
+        return list(reversed(path))
 
     def to_json(self):
         return json.dumps(self.to_dict(), indent=2)
@@ -192,6 +196,32 @@ class ChatBot:
         self.tokenizer = self.pipeline.tokenizer
         self.chat_tree = ChatTree()
         logger.info("ChatBot initialization complete")
+
+    def get_name(self, first_message):
+        logger.info("Generating chat name based on first message")
+        prompt = f"Based on the following first message from a user, generate a short (2-5 words) and representative name for this chat conversation:\n\n'{first_message}'\n\nChat name:"
+        
+        input_ids = self.tokenizer.encode(prompt, return_tensors='pt').to('cuda')
+        
+        with torch.no_grad():
+            output = self.model.generate(
+                input_ids, 
+                max_new_tokens=10,  # Limit to a short response
+                do_sample=True,
+                temperature=0.7,  # Slightly randomized but still focused
+                pad_token_id=self.tokenizer.eos_token_id
+            )
+        
+        generated_text = self.tokenizer.decode(output[0], skip_special_tokens=True)
+        chat_name = generated_text.split("Chat name:")[-1].strip()
+        
+        # Ensure the chat name is not too long
+        if len(chat_name.split()) > 5:
+            chat_name = " ".join(chat_name.split()[:5])
+        
+        self.chat_tree.chat_name = chat_name
+        logger.info(f"Generated chat name: {chat_name}")
+        return chat_name
 
     def get_chat_history(self):
         return self.chat_tree.get_chat_history()
@@ -241,6 +271,10 @@ class ChatBot:
         logger.info(f"Processing chat: {user_message[:50]}...")
         self.chat_tree.add_message("user", user_message)
         self.chat_tree.add_message("assistant", "")
+
+        # If this is the first user message and there's no chat name, generate one
+        if len(self.chat_tree.get_chat_history()) >= 2 and not self.chat_tree.chat_name:  # 2 because of the initial system message
+            self.get_name(user_message)
         return self.generate_response(self.get_chat_history())
 
     def edit(self, level, new_message):
@@ -291,8 +325,16 @@ class ChatBot:
 
     def list_chat_histories(self):
         chat_files = [f for f in os.listdir(self.chat_dir) if f.endswith('.json')]
-        chat_ids = [os.path.splitext(f)[0] for f in chat_files]
-        return chat_ids
+        chat_info = []
+        for filename in chat_files:
+            chat_id = os.path.splitext(filename)[0]
+            filepath = os.path.join(self.chat_dir, filename)
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+            chat_name = data.get('chat_name', 'Unnamed Chat')
+            chat_info.append({'id': chat_id, 'name': chat_name})
+        return chat_info
+
 
     def start_new_chat(self):
         self.chat_tree = ChatTree()

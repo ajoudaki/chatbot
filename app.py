@@ -34,6 +34,45 @@ def handle_connect():
     logger.info("Client connected")
     emit('chat_history', {'messages': chatbot.get_chat_history()})
 
+@socketio.on('save_chat')
+def handle_save_chat():
+    logger.info("Saving current chat")
+    filepath = chatbot.save_chat_tree()
+    emit('chat_saved', {'filepath': filepath})
+
+@socketio.on('load_chat')
+def handle_load_chat(data):
+    chat_id = data.get('chat_id')
+    logger.info(f"Loading chat with ID: {chat_id}")
+    try:
+        chat_history = chatbot.load_chat_tree(chat_id)
+        emit('chat_history', {'messages': chat_history})
+    except FileNotFoundError:
+        emit('error', {'message': 'Chat history not found'})
+
+@socketio.on('list_chats')
+def handle_list_chats():
+    chat_list = chatbot.list_chat_histories()
+    # chat_data = []
+    # for chat_id in chat_list:
+    #     first_message = chatbot.get_first_user_message(chat_id)
+    #     chat_data.append({
+    #         'id': chat_id,
+    #         'first_user_message': first_message
+    #     })
+    emit('chat_list', {'chats': chat_list})
+
+
+@socketio.on('new_chat')
+def handle_new_chat():
+    logger.info("Starting a new chat")
+    # Save the current chat first
+    chatbot.save_chat_tree()
+    # Start a new chat
+    new_chat_id = chatbot.start_new_chat()
+    emit('new_chat_started', {'chat_id': new_chat_id})
+    emit('chat_history', {'messages': []})
+
 @socketio.on('chat')
 def handle_chat(data):
     user_message = data.get('message', '')

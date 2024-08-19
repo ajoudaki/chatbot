@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Button, Input, List, Typography, Layout, Space, message, Tooltip } from 'antd';
+import { Button, Input, List, Typography, Layout, Space, message, Tooltip, Spin } from 'antd';
 import { 
   SendOutlined, 
   EditOutlined, 
@@ -10,12 +10,13 @@ import {
   LeftOutlined, 
   RightOutlined,
   SyncOutlined,
-  PlusCircleOutlined
+  PlusCircleOutlined,
+  SaveOutlined
 } from '@ant-design/icons';
 import io from 'socket.io-client';
 
 const { Title, Text } = Typography;
-const { Header, Content, Footer } = Layout;
+const { Header, Content, Footer, Sider } = Layout;
 
 // Custom hook for managing socket connection
 const useSocket = () => {
@@ -239,15 +240,54 @@ const ChatInput = ({ inputMessage, setInputMessage, handleSubmit, isLoading, aud
   );
 };
 
+// Updated ChatHistorySidebar component
+const ChatHistorySidebar = ({ chatList, onChatSelect, onNewChat, currentChatId }) => {
+  return (
+    <Sider width={300} style={{ background: '#fff', padding: '20px' }}>
+      <Button 
+        type="primary" 
+        icon={<PlusCircleOutlined />} 
+        onClick={onNewChat}
+        style={{ marginBottom: '20px', width: '100%' }}
+      >
+        New Chat
+      </Button>
+      <List
+        dataSource={chatList}
+        renderItem={(chat) => (
+          <List.Item 
+            onClick={() => onChatSelect(chat.id)}
+            style={{ 
+              cursor: 'pointer',
+              backgroundColor: chat.id === currentChatId ? '#e6f7ff' : 'transparent',
+              padding: '10px',
+              borderRadius: '4px'
+            }}
+          >
+            <Text ellipsis={true} style={{ width: '100%' }}>
+              {chat.preview || 'New Chat'}
+            </Text>
+          </List.Item>
+        )}
+      />
+    </Sider>
+  );
+};
+
 // Main App component
 const App = () => {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [editingIndex, setEditingIndex] = useState(-1);
+  const [chatList, setChatList] = useState([]);
+  const [currentChatId, setCurrentChatId] = useState(null);
   const chatContainerRef = useRef(null);
   const socket = useSocket();
   const audioControls = useAudio();
+
+  // New state to track if the current chat has been saved
+  const [isChatSaved, setIsChatSaved] = useState(false);
 
   useEffect(() => {
     if (!socket) return;
@@ -255,25 +295,72 @@ const App = () => {
     socket.on('chat_history', (data) => {
       console.log('Received chat history:', data.messages);
       setMessages(data.messages);
+      setIsChatSaved(true);
     });
 
     socket.on('chat_update', (data) => {
       console.log('Received chat update:', data);
       setMessages(data.messages);
       setIsLoading(data.type !== 'stop' && data.type !== 'navigation');
+      
+      // Auto-save after each update
+      if (currentChatId && data.type === 'stop') {
+        socket.emit('save_chat');
+      }
     });
+
+    socket.on('chat_saved', (data) => {
+      console.log(`Chat saved successfully: ${data.filepath}`);
+      setIsChatSaved(true);
+      // Request updated chat list after saving
+      socket.emit('list_chats');
+    });
+
+    socket.on('new_chat_started', (data) => {
+      setCurrentChatId(data.chat_id);
+      setIsChatSaved(false);
+      message.success(`New chat started`);
+      // Request updated chat list after starting a new chat
+      socket.emit('list_chats');
+    });
+
+    socket.on('chat_list', (data) => {
+      const updatedChatList = data.chats.map(chat => ({
+        id: chat.id,
+        preview: chat.name, 
+      }));
+      setChatList(updatedChatList);
+    });
+
+    socket.on('error', (data) => {
+      message.error(data.message);
+    });
+
+    // Request the list of chats when the component mounts
+    socket.emit('list_chats');
 
     return () => {
       socket.off('chat_history');
       socket.off('chat_update');
+      socket.off('chat_saved');
+      socket.off('new_chat_started');
+      socket.off('chat_list');
+      socket.off('error');
     };
-  }, [socket]);
+  }, [socket, currentChatId]);
 
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // New effect to auto-save when the chat state changes
+  useEffect(() => {
+    if (currentChatId && messages.length > 0 && !isChatSaved) {
+      socket.emit('save_chat');
+    }
+  }, [messages, currentChatId, isChatSaved, socket]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -297,6 +384,7 @@ const App = () => {
     socket.emit('chat', { message: messageContent });
     setInputMessage('');
     audioControls.setAudioBlob(null);
+    setIsChatSaved(false);  // Mark the chat as unsaved after a new message
   };
 
   const uploadAudio = async (blob) => {
@@ -342,6 +430,7 @@ const App = () => {
     setEditingIndex(-1);
     setInputMessage(editContent);
     setIsLoading(true);
+    setIsChatSaved(false);  // Mark the chat as unsaved after an edit
   };
 
   const handleChangeActiveChild = (index, direction) => {
@@ -349,6 +438,7 @@ const App = () => {
       level: messages.length - index - 1,
       direction: direction
     });
+    setIsChatSaved(false);  // Mark the chat as unsaved after changing active child
   };
 
   const handleCopy = (content) => {
@@ -357,20 +447,27 @@ const App = () => {
       .catch(() => message.error('Failed to copy content'));
   };
 
-  const handleReset = () => {
-    socket.emit('reset_chat');
-    setMessages([]);
-    message.success('Chat history reset');
+  const handleNewChat = () => {
+    socket.emit('new_chat');
+    setIsChatSaved(false);  // Mark the new chat as unsaved
+  };
+
+  const handleLoadChat = (chatId) => {
+    socket.emit('load_chat', { chat_id: chatId });
+    setCurrentChatId(chatId);
+    setIsChatSaved(true);  // Mark the loaded chat as saved
   };
 
   const handleContinue = useCallback(() => {
     socket.emit('continue');
     setIsLoading(true);
+    setIsChatSaved(false);  // Mark the chat as unsaved when continuing
   }, [socket]);
 
   const handleRegenerate = useCallback(() => {
     socket.emit('regenerate');
     setIsLoading(true);
+    setIsChatSaved(false);  // Mark the chat as unsaved when regenerating
   }, [socket]);
 
   const getLastSystemMessageIndex = useCallback(() => {
@@ -387,52 +484,60 @@ const App = () => {
       <Header style={{ background: '#fff', padding: '0 20px' }}>
         <Title level={3}>Chatbot</Title>
       </Header>
-      <Content style={{ padding: '20px' }}>
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <Button onClick={handleReset}>Start New Chat</Button>
-          <div ref={chatContainerRef} style={{
-            height: 'calc(100vh - 250px)',
-            overflowY: 'auto',
-            border: '1px solid #d9d9d9',
-            borderRadius: '4px',
-            padding: '20px',
-          }}>
-            <List
-              itemLayout="horizontal"
-              dataSource={messages}
-              renderItem={(item, index) => (
-                <List.Item style={{
-                  justifyContent: item.role === 'user' ? 'flex-end' : 'flex-start',
-                  padding: '10px 0',
-                }}>
-                  <div style={{ width: '95%', display: 'flex', justifyContent: item.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                    <MessageItem
-                      item={item}
-                      index={index}
-                      editingIndex={editingIndex}
-                      setEditingIndex={setEditingIndex}
-                      handleEdit={handleEdit}
-                      handleCopy={handleCopy}
-                      handleChangeActiveChild={handleChangeActiveChild}
-                      isLastSystemMessage={index === getLastSystemMessageIndex()}
-                      handleContinue={handleContinue}
-                      handleRegenerate={handleRegenerate}
-                      isLoading={isLoading}
-                    />
-                  </div>
-                </List.Item>
-              )}
+      <Layout>
+        <ChatHistorySidebar 
+          chatList={chatList} 
+          onChatSelect={handleLoadChat} 
+          onNewChat={handleNewChat}
+          currentChatId={currentChatId}
+        />
+        <Content style={{ padding: '20px' }}>
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <div ref={chatContainerRef} style={{
+              height: 'calc(100vh - 200px)',
+              overflowY: 'auto',
+              border: '1px solid #d9d9d9',
+              borderRadius: '4px',
+              padding: '20px',
+            }}>
+              {isLoading && <Spin style={{ display: 'block', textAlign: 'center' }} />}
+              <List
+                itemLayout="horizontal"
+                dataSource={messages}
+                renderItem={(item, index) => (
+                  <List.Item style={{
+                    justifyContent: item.role === 'user' ? 'flex-end' : 'flex-start',
+                    padding: '10px 0',
+                  }}>
+                    <div style={{ width: '95%', display: 'flex', justifyContent: item.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                      <MessageItem
+                        item={item}
+                        index={index}
+                        editingIndex={editingIndex}
+                        setEditingIndex={setEditingIndex}
+                        handleEdit={handleEdit}
+                        handleCopy={handleCopy}
+                        handleChangeActiveChild={handleChangeActiveChild}
+                        isLastSystemMessage={index === getLastSystemMessageIndex()}
+                        handleContinue={handleContinue}
+                        handleRegenerate={handleRegenerate}
+                        isLoading={isLoading}
+                      />
+                    </div>
+                  </List.Item>
+                )}
+              />
+            </div>
+            <ChatInput
+              inputMessage={inputMessage}
+              setInputMessage={setInputMessage}
+              handleSubmit={handleSubmit}
+              isLoading={isLoading}
+              audioControls={audioControls}
             />
-          </div>
-          <ChatInput
-            inputMessage={inputMessage}
-            setInputMessage={setInputMessage}
-            handleSubmit={handleSubmit}
-            isLoading={isLoading}
-            audioControls={audioControls}
-          />
-        </Space>
-      </Content>
+          </Space>
+        </Content>
+      </Layout>
       <Footer style={{ textAlign: 'center' }}>Chatbot ©2024 Created by Amir Joudaki</Footer>
     </Layout>
   );
