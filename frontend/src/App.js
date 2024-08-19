@@ -90,9 +90,24 @@ const useAudio = () => {
 };
 
 // MessageItem component
-const MessageItem = ({ item, index, editingIndex, setEditingIndex, handleEdit, handleCopy, handleChangeActiveChild, isLastSystemMessage, handleContinue, handleRegenerate, isLoading }) => {
+// Updated MessageItem component
+const MessageItem = ({ 
+  item, 
+  index, 
+  isLastMessage,
+  editingIndex, 
+  setEditingIndex, 
+  handleEdit, 
+  handleCopy, 
+  handleChangeActiveChild, 
+  isLastSystemMessage, 
+  handleContinue, 
+  handleRegenerate, 
+  isLoading 
+}) => {
   const [editContent, setEditContent] = useState(item.content);
   const [currentSibling, totalSiblings] = item.sibling_info;
+  const [isHovered, setIsHovered] = useState(false);
 
   const actionButtonStyle = {
     color: '#1890ff',
@@ -117,92 +132,99 @@ const MessageItem = ({ item, index, editingIndex, setEditingIndex, handleEdit, h
   }
 
   return (
-    <div style={{
-      width: '95%',
-      padding: '10px 15px',
-      borderRadius: '20px',
-      backgroundColor: item.role === 'user' ? '#c0c0c0' : '#f0f0f0',
-      color: item.role === 'user' ? 'white' : 'black',
-      position: 'relative',
-    }}>
+    <div 
+      style={{
+        width: '95%',
+        padding: '10px 15px',
+        borderRadius: '20px',
+        backgroundColor: item.role === 'user' ? '#c0c0c0' : '#f0f0f0',
+        color: item.role === 'user' ? 'white' : 'black',
+        position: 'relative',
+      }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       <Text style={{ whiteSpace: 'pre-wrap' }}>{item.content}</Text>
-      <Space 
-        style={{
-          position: 'absolute',
-          bottom: '5px',
-          right: '5px',
-          backgroundColor: 'rgba(255, 255, 255, 0.7)',
-          borderRadius: '10px',
-          padding: '2px 5px',
-        }}
-      >
-        {item.role === 'user' && (
-          <Tooltip title="Edit">
+      {(isLastMessage || isHovered) && (
+        <Space 
+          style={{
+            position: 'absolute',
+            bottom: '5px',
+            right: '5px',
+            backgroundColor: 'rgba(255, 255, 255, 0.7)',
+            borderRadius: '10px',
+            padding: '2px 5px',
+          }}
+        >
+          {item.role === 'user' && (
+            <Tooltip title="Edit">
+              <Button 
+                type="text" 
+                icon={<EditOutlined />} 
+                onClick={() => setEditingIndex(index)}
+                style={actionButtonStyle}
+              />
+            </Tooltip>
+          )}
+          <Tooltip title="Copy">
             <Button 
               type="text" 
-              icon={<EditOutlined />} 
-              onClick={() => setEditingIndex(index)}
+              icon={<CopyOutlined />} 
+              onClick={() => handleCopy(item.content)}
               style={actionButtonStyle}
             />
           </Tooltip>
-        )}
-        <Tooltip title="Copy">
-          <Button 
-            type="text" 
-            icon={<CopyOutlined />} 
-            onClick={() => handleCopy(item.content)}
-            style={actionButtonStyle}
-          />
-        </Tooltip>
-        {totalSiblings > 1 && (
-          <>
-            <Tooltip title="Previous version">
-              <Button 
-                type="text" 
-                icon={<LeftOutlined />} 
-                onClick={() => handleChangeActiveChild(index, 'prev')}
-                disabled={currentSibling === 1}
-                style={actionButtonStyle}
-              />
-            </Tooltip>
-            <Text>{`${currentSibling} / ${totalSiblings}`}</Text>
-            <Tooltip title="Next version">
-              <Button 
-                type="text" 
-                icon={<RightOutlined />} 
-                onClick={() => handleChangeActiveChild(index, 'next')}
-                disabled={currentSibling === totalSiblings}
-                style={actionButtonStyle}
-              />
-            </Tooltip>
-          </>
-        )}
-        {isLastSystemMessage && (
-          <>
-            <Tooltip title="Continue">
-              <Button 
-                type="text" 
-                icon={<PlusCircleOutlined />} 
-                onClick={handleContinue}
-                loading={isLoading}
-                style={actionButtonStyle}
-              />
-            </Tooltip>
-            <Tooltip title="Regenerate">
-              <Button 
-                type="text" 
-                icon={<SyncOutlined />} 
-                onClick={handleRegenerate}
-                loading={isLoading}
-                style={actionButtonStyle}
-              />
-            </Tooltip>
-          </>
-        )}
-      </Space>
+          {totalSiblings > 1 && (
+            <>
+              <Tooltip title="Previous version">
+                <Button 
+                  type="text" 
+                  icon={<LeftOutlined />} 
+                  onClick={() => handleChangeActiveChild(index, 'prev')}
+                  disabled={currentSibling === 1}
+                  style={actionButtonStyle}
+                />
+              </Tooltip>
+              <Text>{`${currentSibling} / ${totalSiblings}`}</Text>
+              <Tooltip title="Next version">
+                <Button 
+                  type="text" 
+                  icon={<RightOutlined />} 
+                  onClick={() => handleChangeActiveChild(index, 'next')}
+                  disabled={currentSibling === totalSiblings}
+                  style={actionButtonStyle}
+                />
+              </Tooltip>
+            </>
+          )}
+          {isLastSystemMessage && (
+            <>
+              <Tooltip title="Continue">
+                <Button 
+                  type="text" 
+                  icon={<PlusCircleOutlined />} 
+                  onClick={handleContinue}
+                  loading={isLoading}
+                  style={actionButtonStyle}
+                />
+              </Tooltip>
+              <Tooltip title="Regenerate">
+                <Button 
+                  type="text" 
+                  icon={<SyncOutlined />} 
+                  onClick={handleRegenerate}
+                  loading={isLoading}
+                  style={actionButtonStyle}
+                />
+              </Tooltip>
+            </>
+          )}
+        </Space>
+      )}
     </div>
   );
 };
+
                         
 
 // ChatInput component
