@@ -59,25 +59,32 @@ export const MessageItem = ({
     <div 
       style={{
         width: '95%',
-        padding: '10px 15px',
-        borderRadius: '20px',
-        backgroundColor: item.role === 'user' ? '#c0c0c0' : '#f0f0f0',
-        color: item.role === 'user' ? 'white' : 'black',
+        marginBottom: '20px',
         position: 'relative',
       }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <Text style={{ whiteSpace: 'pre-wrap' }}>{item.content}</Text>
+      <div 
+        style={{
+          padding: '10px 15px',
+          borderRadius: '20px',
+          backgroundColor: item.role === 'user' ? '#c0c0c0' : '#f0f0f0',
+          color: item.role === 'user' ? 'white' : 'black',
+        }}
+      >
+        <Text style={{ whiteSpace: 'pre-wrap' }}>{item.content}</Text>
+      </div>
       {(isLastSystemMessage || isHovered) && (
         <Space 
           style={{
             position: 'absolute',
-            bottom: '5px',
+            top: '100%',
             right: '5px',
             backgroundColor: 'rgba(255, 255, 255, 0.7)',
             borderRadius: '10px',
             padding: '2px 5px',
+            marginTop: '5px',
           }}
         >
           {item.role === 'user' && (
@@ -121,7 +128,7 @@ export const MessageItem = ({
               </Tooltip>
             </>
           )}
-          {(isLastSystemMessage || (item.role=="assistant" && isHovered)) && (
+          {(isLastSystemMessage || (item.role === "assistant" && isHovered)) && (
             <>
               <Tooltip title="Continue">
                 <Button 
