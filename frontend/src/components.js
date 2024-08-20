@@ -121,7 +121,7 @@ export const MessageItem = ({
               </Tooltip>
             </>
           )}
-          {(isLastSystemMessage || isHovered) && (
+          {(isLastSystemMessage || (item.role=="assistant" && isHovered)) && (
             <>
               <Tooltip title="Continue">
                 <Button 
