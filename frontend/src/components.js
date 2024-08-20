@@ -121,7 +121,7 @@ export const MessageItem = ({
               </Tooltip>
             </>
           )}
-          {isLastSystemMessage && (
+          {(isLastSystemMessage || isHovered) && (
             <>
               <Tooltip title="Continue">
                 <Button 
@@ -136,7 +136,7 @@ export const MessageItem = ({
                 <Button 
                   type="text" 
                   icon={<SyncOutlined />} 
-                  onClick={handleRegenerate}
+                  onClick={() => handleRegenerate(index)}
                   loading={isLoading}
                   style={actionButtonStyle}
                 />
