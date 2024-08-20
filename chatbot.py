@@ -246,14 +246,14 @@ class ChatBot:
     def get_full_chat_history(self):
         return self.chat_tree.get_full_chat_history()
 
-    def generate_response(self, messages):
+    def generate_response(self, messages, ):
         logger.info("Generating response")
         total_tokens = 256
         chunk_size = 20
         formatted_input = self.tokenizer.apply_chat_template(messages, tokenize=False)
         
         input_ids = self.tokenizer.encode(formatted_input, return_tensors='pt', add_special_tokens=False).to('cuda')
-        generated_text = ""
+        generated_text = self.chat_tree.current_node.content
         remaining_tokens = total_tokens
         first_chunk = True
             
@@ -319,6 +319,7 @@ class ChatBot:
         logger.info("Continuing chat")
         if self.chat_tree.current_node.role != "assistant":
             self.chat_tree.add_message("assistant", "")
+            logger.debug("Continuing chat: new assistant message added") 
         else:
             self.chat_tree.current_node.content += " "
         return self.generate_response(self.get_chat_history())
