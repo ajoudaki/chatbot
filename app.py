@@ -67,9 +67,9 @@ def handle_new_chat():
     # Save the current chat first
     chatbot.save_chat_tree()
     # Start a new chat
-    new_chat_id = chatbot.start_new_chat()
-    emit('new_chat_started', {'chat_id': new_chat_id})
-    emit('chat_history', {'messages': []})
+    chatbot.start_new_chat()
+    emit('new_chat_started', {'chat_id': chatbot.get_chat_id()})
+    emit('chat_history', {'messages': chatbot.get_chat_history()})
 
 @socketio.on('chat')
 def handle_chat(data):
