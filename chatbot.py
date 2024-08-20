@@ -76,16 +76,23 @@ class ChatTree:
         logger.debug(f"Retrieved chat history: {len(history)} messages")
         return history
 
-    def regenerate_message(self):
-        if self.current_node.role == "assistant":
-            parent = self.current_node.parent
+    def regenerate_message(self, level=0):
+        node = self.current_node
+        for _ in range(level):
+            if node.parent:
+                node = node.parent
+            else:
+                break
+
+        if node.role == "assistant":
+            parent = node.parent
             new_assistant_node = ChatNode("assistant", "")
             parent.add_child(new_assistant_node)
             parent.active_child_index = len(parent.children) - 1
             self.current_node = new_assistant_node
-            logger.info("Created new branch for regenerated assistant message")
+            logger.info(f"Created new branch for regenerated assistant message at level {level}")
         else:
-            logger.warning("Attempted to regenerate a non-assistant message")
+            logger.warning(f"Attempted to regenerate a non-assistant message at level {level}")
         
         return self.get_chat_history()
 
@@ -289,10 +296,11 @@ class ChatBot:
     def change_active_child(self, level, direction):
         return self.chat_tree.change_active_child(level, direction)
 
-    def regenerate(self):
-        logger.info("Regenerating response")
-        updated_history = self.chat_tree.regenerate_message()
+    def regenerate(self, level=0):
+        logger.info(f"Regenerating response at level {level}")
+        updated_history = self.chat_tree.regenerate_message(level)
         return self.generate_response(updated_history)
+
 
     def continue_chat(self):
         logger.info("Continuing chat")

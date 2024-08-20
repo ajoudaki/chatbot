@@ -23,7 +23,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Initialize the transcriber and chatbot when starting the app
-# transcriber = Transcriber('openai/whisper-base')
+transcriber = Transcriber('openai/whisper-base')
 chatbot = ChatBot()
 
 def allowed_file(filename):
@@ -103,9 +103,10 @@ def handle_change_active_child(data):
     logger.info("Navigation completed")
 
 @socketio.on('regenerate')
-def handle_regenerate():
+def handle_regenerate(data):
+    level = data.get('level', 0)
     logger.info("Regenerating response")
-    for updated_messages in chatbot.regenerate():
+    for updated_messages in chatbot.regenerate(level):
         emit('chat_update', {'messages': updated_messages})
     emit('chat_update', {'messages': updated_messages, 'type': 'stop'})
     logger.info("Regeneration completed")

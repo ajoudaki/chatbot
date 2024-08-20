@@ -188,11 +188,13 @@ const App = () => {
     setIsChatSaved(false);
   }, [socket]);
 
-  const handleRegenerate = useCallback(() => {
-    socket.emit('regenerate');
+  const handleRegenerate = useCallback((index) => {
+    socket.emit('regenerate', {
+      level: messages.length - index - 1
+    });
     setIsLoading(true);
     setIsChatSaved(false);
-  }, [socket]);
+  }, [socket,messages]);
 
   const getLastSystemMessageIndex = useCallback(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
