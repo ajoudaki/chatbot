@@ -75,6 +75,9 @@ class ChatTree:
             node = node.parent
         logger.debug(f"Retrieved chat history: {len(history)} messages")
         return history
+    
+    def get_full_chat_history(self):
+        return {'messages': self.get_chat_history(), 'id': self.chat_id, 'name': self.chat_name}
 
     def regenerate_message(self, level=0):
         node = self.current_node
@@ -204,7 +207,13 @@ class ChatBot:
         self.chat_tree = ChatTree()
         logger.info("ChatBot initialization complete")
 
-    def get_name(self, first_message):
+    def get_chat_id(self):
+        return self.chat_tree.chat_id
+    
+    def get_chat_name(self):
+        return self.chat_tree.chat_name
+
+    def generate_name(self, first_message):
         logger.info("Generating chat name based on first message")
         prompt = f"Based on the following first message from a user, generate a short (2-5 words) and representative name for this chat conversation:\n\n'{first_message}'\n\nChat name:"
         
@@ -230,8 +239,12 @@ class ChatBot:
         logger.info(f"Generated chat name: {chat_name}")
         return chat_name
 
+
     def get_chat_history(self):
         return self.chat_tree.get_chat_history()
+    
+    def get_full_chat_history(self):
+        return self.chat_tree.get_full_chat_history()
 
     def generate_response(self, messages):
         logger.info("Generating response")
@@ -284,7 +297,7 @@ class ChatBot:
 
         # If this is the first user message and there's no chat name, generate one
         if len(self.chat_tree.get_chat_history()) >= 2 and not self.chat_tree.chat_name:  # 2 because of the initial system message
-            self.get_name(user_message)
+            self.generate_name(user_message)
         return self.generate_response(self.get_chat_history())
 
     def edit(self, level, new_message):

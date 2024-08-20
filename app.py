@@ -46,20 +46,18 @@ def handle_load_chat(data):
     logger.info(f"Loading chat with ID: {chat_id}")
     try:
         chat_history = chatbot.load_chat_tree(chat_id)
-        emit('chat_history', {'messages': chat_history})
+        emit('chat_history', {
+            'messages': chat_history,
+            'id': chatbot.get_chat_id(),
+            'name': chatbot.get_chat_name()
+            })
     except FileNotFoundError:
         emit('error', {'message': 'Chat history not found'})
 
 @socketio.on('list_chats')
 def handle_list_chats():
+    logger.info("Listing chat histories")
     chat_list = chatbot.list_chat_histories()
-    # chat_data = []
-    # for chat_id in chat_list:
-    #     first_message = chatbot.get_first_user_message(chat_id)
-    #     chat_data.append({
-    #         'id': chat_id,
-    #         'first_user_message': first_message
-    #     })
     emit('chat_list', {'chats': chat_list})
 
 
@@ -78,7 +76,7 @@ def handle_chat(data):
     user_message = data.get('message', '')
     logger.info(f"Received chat message: {user_message}")
     for updated_messages in chatbot.chat(user_message):
-        emit('chat_update', {'messages': updated_messages})
+        emit('chat_update', chatbot.get_full_chat_history())
     emit('chat_update', {'messages': updated_messages, 'type': 'stop'})
     logger.info("Chat response completed")
 
@@ -88,7 +86,7 @@ def handle_edit(data):
     new_message = data.get('message', '')
     logger.info(f"Editing message at level {level}: {new_message}")
     for updated_messages in chatbot.edit(level, new_message):
-        emit('chat_update', {'messages': updated_messages})
+        emit('chat_update', chatbot.get_full_chat_history())
     emit('chat_update', {'messages': updated_messages, 'type': 'stop'})
     logger.info("Edit completed")
 
@@ -107,7 +105,7 @@ def handle_regenerate(data):
     level = data.get('level', 0)
     logger.info("Regenerating response")
     for updated_messages in chatbot.regenerate(level):
-        emit('chat_update', {'messages': updated_messages})
+        emit('chat_update', chatbot.get_full_chat_history())
     emit('chat_update', {'messages': updated_messages, 'type': 'stop'})
     logger.info("Regeneration completed")
 
@@ -115,7 +113,7 @@ def handle_regenerate(data):
 def handle_continue():
     logger.info("Continuing chat")
     for updated_messages in chatbot.continue_chat():
-        emit('chat_update', {'messages': updated_messages})
+        emit('chat_update', chatbot.get_full_chat_history())
     emit('chat_update', {'messages': updated_messages, 'type': 'stop'})
     logger.info("Continuation completed")
 
@@ -123,7 +121,7 @@ def handle_continue():
 def reset_chat():
     logger.info("Resetting chat")
     chat_history = chatbot.reset_chat()
-    emit('chat_history', {'messages': chat_history})
+    emit('chat_history', chatbot.get_full_chat_history())
     logger.info("Chat reset completed")
 
 @app.route('/api/upload_audio', methods=['POST'])
