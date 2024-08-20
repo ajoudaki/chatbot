@@ -61,6 +61,7 @@ export const MessageItem = ({
         width: '95%',
         marginBottom: '20px',
         position: 'relative',
+        paddingBottom: '30px', // Add padding to create space for buttons
       }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -79,7 +80,7 @@ export const MessageItem = ({
         <Space 
           style={{
             position: 'absolute',
-            top: '100%',
+            bottom: '0',
             right: '5px',
             backgroundColor: 'rgba(255, 255, 255, 0.7)',
             borderRadius: '10px',
