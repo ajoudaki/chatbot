@@ -199,7 +199,10 @@ class ChatBot:
             "text-generation",
             config=self.config,
             model=self.model_id,
-            model_kwargs={"torch_dtype": torch.bfloat16,"load_in_8bit": True},
+            model_kwargs={
+                "torch_dtype": torch.bfloat16,
+               # "load_in_4bit": True,
+                },
             device_map="auto",
         )
         self.model = self.pipeline.model
@@ -248,9 +251,9 @@ class ChatBot:
 
     def generate_response(self, messages, ):
         logger.info("Generating response")
-        total_tokens = 256
+        total_tokens = 512
         chunk_size = 20
-        formatted_input = self.tokenizer.apply_chat_template(messages, tokenize=False)
+        formatted_input = self.tokenizer.apply_chat_template(messages[:11]+messages[-10:], tokenize=False)
         
         input_ids = self.tokenizer.encode(formatted_input, return_tensors='pt', add_special_tokens=False).to('cuda')
         generated_text = self.chat_tree.current_node.content
