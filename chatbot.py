@@ -6,6 +6,45 @@ import json
 import os
 import uuid
 
+from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+
+def get_deepseek():
+    # Define model identifier for the 32B model
+    model_id = "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
+    
+    # Configure 4-bit quantization
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",       # recommended quantization type
+        bnb_4bit_use_double_quant=True, # disable double quantization for speed
+        bnb_4bit_compute_dtype=torch.float16  # use FP16 compute for speed
+    )
+    
+    # Set max_memory for each GPU to force all parts of the model to load on GPU
+    max_memory = {0: "24GB", 1: "24GB"}
+    
+    # Load the tokenizer
+    tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
+    if tokenizer.pad_token_id is None:
+        tokenizer.pad_token_id = tokenizer.eos_token_id
+    
+    # Load the model with quantization, device map, and max_memory constraints
+    model = AutoModelForCausalLM.from_pretrained(
+        model_id,
+        quantization_config=bnb_config,
+        device_map="balanced",         # distribute layers across GPUs
+        max_memory=max_memory,         # force all modules onto the GPUs
+        torch_dtype=torch.float16,     # load weights in FP16
+        trust_remote_code=True         # needed for custom Qwen implementations
+    )
+    try:
+        model = torch.compile(model)
+        print("Model compiled for optimized inference.")
+    except Exception as e:
+        print("Could not compile model (proceeding without torch.compile):", e)
+        
+    return model, tokenizer
+
 logger = logging.getLogger(__name__)
 
 class ChatNode:
@@ -48,7 +87,7 @@ class ChatNode:
 
 class ChatTree:
     def __init__(self):
-        self.root = ChatNode("system", "You are an obedient assistant following user direction.")
+        self.root = ChatNode("user", "You are a helpful language assistant that are always factually correct.")
         self.current_node = self.root
         self.chat_id = str(uuid.uuid4())
         self.chat_name = ""  # New attribute to store the chat name
@@ -193,20 +232,21 @@ class ChatBot:
         if not os.path.exists(self.chat_dir):
             os.makedirs(self.chat_dir)
         logger.info(f"Initializing ChatBot with model: {model_id}")
-        self.config = AutoConfig.from_pretrained(model_id)
-        self.config.use_flash_attention_2 = True
-        self.pipeline = transformers.pipeline(
-            "text-generation",
-            config=self.config,
-            model=self.model_id,
-            model_kwargs={
-                "torch_dtype": torch.bfloat16,
-               # "load_in_4bit": True,
-                },
-            device_map="auto",
-        )
-        self.model = self.pipeline.model
-        self.tokenizer = self.pipeline.tokenizer
+        # self.config = AutoConfig.from_pretrained(model_id)
+        # self.config.use_flash_attention_2 = True
+        # self.pipeline = transformers.pipeline(
+        #     "text-generation",
+        #     config=self.config,
+        #     model=self.model_id,
+        #     model_kwargs={
+        #         "torch_dtype": torch.bfloat16,
+        #        # "load_in_4bit": True,
+        #         },
+        #     device_map="auto",
+        # )
+        # self.model = self.pipeline.model
+        # self.tokenizer = self.pipeline.tokenizer
+        self.model, self.tokenizer = get_deepseek()
         self.chat_tree = ChatTree()
         logger.info("ChatBot initialization complete")
 
@@ -219,15 +259,16 @@ class ChatBot:
     def generate_name(self, first_message):
         logger.info("Generating chat name based on first message")
         prompt = f"Based on the following first message from a user, generate a short (2-5 words) and representative name for this chat conversation:\n\n'{first_message}'\n\nChat name:"
+        first_device = self.model.hf_device_map.get('transformer.wte', 0)
         
-        input_ids = self.tokenizer.encode(prompt, return_tensors='pt').to('cuda')
+        input_ids = self.tokenizer.encode(prompt, return_tensors='pt').to(first_device)
         
         with torch.no_grad():
             output = self.model.generate(
                 input_ids, 
-                max_new_tokens=10,  # Limit to a short response
+                max_new_tokens=30,  # Limit to a short response
                 do_sample=True,
-                temperature=0.7,  # Slightly randomized but still focused
+                temperature=1.5,  # Slightly randomized but still focused
                 pad_token_id=self.tokenizer.eos_token_id
             )
         
@@ -251,7 +292,7 @@ class ChatBot:
 
     def generate_response(self, messages, ):
         logger.info("Generating response")
-        total_tokens = 512
+        total_tokens = 500
         chunk_size = 20
         formatted_input = self.tokenizer.apply_chat_template(messages[:11]+messages[-10:], tokenize=False)
         
@@ -267,6 +308,7 @@ class ChatBot:
                 output = self.model.generate(
                     input_ids, 
                     max_new_tokens=tokens_to_generate, 
+                    temperature=1.5,  # Slightly randomized but still focused
                     do_sample=True, 
                     pad_token_id=self.tokenizer.eos_token_id)
             
