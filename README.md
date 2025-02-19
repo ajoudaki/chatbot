@@ -1,5 +1,5 @@
 
-# Locally hsoted ChatBot 
+# Locally hosted ChatBot 
 
 This repo attempts to create a UI interface similar to chatGPT/Claude but for a self-hosted LLM model. 
 
