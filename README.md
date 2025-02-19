@@ -1,3 +1,4 @@
+![Alt text](./assets/app.png)
 
 # Getting Started with Create React App
 
