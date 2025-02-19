@@ -130,7 +130,7 @@ class ChatTree:
             'messages': self.get_chat_history(), 
             'id': self.chat_id, 
             'name': self.chat_name,
-            'last_modified': self.chat_tree.last_modified  # New field
+            'last_modified': self.last_modified  # New field
         }
 
     def regenerate_message(self, level=0):
