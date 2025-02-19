@@ -1,5 +1,26 @@
 
-# Getting Started with Create React App
+# Locally hosted ChatBot 
+
+This repo attempts to create a UI interface similar to chatGPT/Claude but for a self-hosted LLM model. 
+
+The UI part is based on React and supports a chat history and key chat functions:
+
+- continuous generation of text (seeing it as it is being generated)
+- Regenerating a response
+- Extending a generated text (making responses longer)
+- Editing a query
+- In case of regeneration or editting a response, the chat history is preserved as a tree and can be traversed
+- Recording a voice instead of typing
+- Automatic setting of the conversation title 
+
+The backend is written in `flask` and is using `torch` and `transformers` library to load and use LLMs for the language generation.
+
+I didn't use a database for simplicity, just storing chat history in files. Will be nice to add a database later. 
+  
+Here's a quick snapshot of the UI:
+![Alt text](./assets/app.png)
+
+## How to create the React app
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
