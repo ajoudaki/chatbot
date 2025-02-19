@@ -3,15 +3,16 @@
 
 This repo attempts to create a UI interface similar to chatGPT/Claude but for a self-hosted LLM model. 
 
-The UI part is based on React and the backend is using flask. The LLM on the backend can be changed in a hardcoded way at the moment. 
-
-The UI supports a chat history and key chat functions:
+The UI part is based on React and supports a chat history and key chat functions:
 
 - continuous generation of text (seeing it as it is being generated)
 - Regenerating a response
 - Extending a generated text (making responses longer)
 - Editing a query
 - In case of regeneration or editting a response, the chat history is preserved as a tree and can be traversed
+- Recording a voice instead of typing
+
+The backend is written in `flask` and is using `torch` and `transformers` library to load and use LLMs for the language generation.
   
 Here's a quick snapshot of the UI:
 ![Alt text](./assets/app.png)
