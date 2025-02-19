@@ -9,43 +9,6 @@ from datetime import datetime
 
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 
-def get_deepseek():
-    # Define model identifier for the 32B model
-    model_id = "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
-    
-    # Configure 4-bit quantization
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",       # recommended quantization type
-        bnb_4bit_use_double_quant=True, # disable double quantization for speed
-        bnb_4bit_compute_dtype=torch.float16  # use FP16 compute for speed
-    )
-    
-    # Set max_memory for each GPU to force all parts of the model to load on GPU
-    max_memory = {0: "24GB", 1: "24GB"}
-    
-    # Load the tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
-    if tokenizer.pad_token_id is None:
-        tokenizer.pad_token_id = tokenizer.eos_token_id
-    
-    # Load the model with quantization, device map, and max_memory constraints
-    model = AutoModelForCausalLM.from_pretrained(
-        model_id,
-        quantization_config=bnb_config,
-        device_map="balanced",         # distribute layers across GPUs
-        max_memory=max_memory,         # force all modules onto the GPUs
-        torch_dtype=torch.float16,     # load weights in FP16
-        trust_remote_code=True         # needed for custom Qwen implementations
-    )
-    try:
-        model = torch.compile(model)
-        print("Model compiled for optimized inference.")
-    except Exception as e:
-        print("Could not compile model (proceeding without torch.compile):", e)
-        
-    return model, tokenizer
-
 logger = logging.getLogger(__name__)
 
 class ChatNode:
@@ -245,30 +208,179 @@ class ChatTree:
         data = json.loads(json_str)
         return cls.from_dict(data)
 
+
 class ChatBot:
-    def __init__(self, model_id="meta-llama/Meta-Llama-3.1-8B-Instruct", chat_dir="chat_history"):
-        self.model_id = model_id
+    def __init__(
+        self, 
+        model_config_file="model_config.json", 
+        chat_dir="chat_history"
+    ):
+        self.model_config_file = model_config_file
         self.chat_dir = chat_dir
+
         if not os.path.exists(self.chat_dir):
             os.makedirs(self.chat_dir)
-        logger.info(f"Initializing ChatBot with model: {model_id}")
-        # self.config = AutoConfig.from_pretrained(model_id)
-        # self.config.use_flash_attention_2 = True
-        # self.pipeline = transformers.pipeline(
-        #     "text-generation",
-        #     config=self.config,
-        #     model=self.model_id,
-        #     model_kwargs={
-        #         "torch_dtype": torch.bfloat16,
-        #        # "load_in_4bit": True,
-        #         },
-        #     device_map="auto",
-        # )
-        # self.model = self.pipeline.model
-        # self.tokenizer = self.pipeline.tokenizer
-        self.model, self.tokenizer = get_deepseek()
+
+        # 1. Load or create the model config
+        self.load_model_config()  # sets self.model_name, self.generation_length, self.temperature, self.top_p
+
+        # 2. Load the actual model & tokenizer
+        self.model, self.tokenizer = self.load_model()
+
+        # 3. Initialize ChatTree
         self.chat_tree = ChatTree()
+        
         logger.info("ChatBot initialization complete")
+
+    def load_model_config(self):
+        """Load model config from JSON file or use defaults if not found."""
+        defaults = {
+            "model_name": "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+            "generation_length": 512,
+            "temperature": 0.7,
+            "top_p": 0.95
+        }
+
+        if os.path.exists(self.model_config_file):
+            try:
+                with open(self.model_config_file, "r") as f:
+                    data = json.load(f)
+                logger.info("Loaded existing model config.")
+            except Exception as e:
+                logger.warning(f"Could not read model config file: {e}")
+                data = defaults
+        else:
+            data = defaults
+            logger.info("No model config file found; using defaults.")
+
+        # Set attributes
+        self.model_name = data.get("model_name", defaults["model_name"])
+        self.generation_length = data.get("generation_length", defaults["generation_length"])
+        self.temperature = data.get("temperature", defaults["temperature"])
+        self.top_p = data.get("top_p", defaults["top_p"])
+
+    def save_model_config(self):
+        """Save current config to the model_config_file."""
+        data = {
+            "model_name": self.model_name,
+            "generation_length": self.generation_length,
+            "temperature": self.temperature,
+            "top_p": self.top_p
+        }
+        try:
+            with open(self.model_config_file, "w") as f:
+                json.dump(data, f, indent=2)
+            logger.info("Model config saved.")
+        except Exception as e:
+            logger.error(f"Error saving model config: {e}")
+
+    def update_model_config(self, new_config):
+        """
+        Update model config with new values (validate them), 
+        reload the model if the model_name changed.
+        """
+        valid_models = [
+            "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+            "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B"
+        ]
+        
+        # 1. Validate model_name
+        requested_model = new_config.get("model_name", self.model_name)
+        if requested_model not in valid_models:
+            raise ValueError(f"Invalid model_name: {requested_model}")
+
+        # 2. Validate generation_length
+        requested_length = new_config.get("generation_length", self.generation_length)
+        if not isinstance(requested_length, int) or requested_length <= 0 or requested_length > 4096:
+            raise ValueError("generation_length must be an integer in range 1..4096")
+
+        # 3. Validate temperature
+        requested_temp = new_config.get("temperature", self.temperature)
+        if not (0.0 <= requested_temp <= 2.0):
+            raise ValueError("temperature must be in range 0.0..2.0")
+
+        # 4. Validate top_p
+        requested_top_p = new_config.get("top_p", self.top_p)
+        if not (0.0 <= requested_top_p <= 1.0):
+            raise ValueError("top_p must be in range 0.0..1.0")
+
+        # Check if the model_name is changing
+        model_changed = (requested_model != self.model_name)
+
+        # Update the config in memory
+        self.model_name = requested_model
+        self.generation_length = requested_length
+        self.temperature = requested_temp
+        self.top_p = requested_top_p
+
+        # Reload model if needed
+        if model_changed:
+            logger.info("Model changed. Reloading new model...")
+            self.model, self.tokenizer = self.load_model()
+
+        # Save new config to file
+        self.save_model_config()
+
+        # Return updated config to the caller
+        return self.get_model_config()
+
+    def get_model_config(self):
+        """Return current config as a dict."""
+        return {
+            "model_name": self.model_name,
+            "generation_length": self.generation_length,
+            "temperature": self.temperature,
+            "top_p": self.top_p
+        }
+
+
+    def load_model(self,):
+        """
+        Load the model and tokenizer based on self.model_name, 
+        returning (model, tokenizer).
+        Make sure GPU is cleared if needed.
+        """
+        # If a model is already loaded, clear it before loading a new one
+        try:
+            if hasattr(self, 'model') and self.model is not None:
+                del self.model
+                torch.cuda.empty_cache()
+        except Exception as e:
+            logger.warning(f"Could not clear old model from GPU: {e}")
+        # Define model identifier for the 32B model
+        # Configure 4-bit quantization
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",       # recommended quantization type
+            bnb_4bit_use_double_quant=True, # disable double quantization for speed
+            bnb_4bit_compute_dtype=torch.float16  # use FP16 compute for speed
+        )
+        
+        # Set max_memory for each GPU to force all parts of the model to load on GPU
+        max_memory = {0: "24GB", 1: "24GB"}
+        
+        # Load the tokenizer
+        tokenizer = AutoTokenizer.from_pretrained(self.model_name, trust_remote_code=True)
+        if tokenizer.pad_token_id is None:
+            tokenizer.pad_token_id = tokenizer.eos_token_id
+        
+        # Load the model with quantization, device map, and max_memory constraints
+        model = AutoModelForCausalLM.from_pretrained(
+            self.model_name,
+            quantization_config=bnb_config,
+            device_map="balanced",         # distribute layers across GPUs
+            max_memory=max_memory,         # force all modules onto the GPUs
+            torch_dtype=torch.float16,     # load weights in FP16
+            trust_remote_code=True         # needed for custom Qwen implementations
+        )
+        try:
+            model = torch.compile(model)
+            print("Model compiled for optimized inference.")
+        except Exception as e:
+            print("Could not compile model (proceeding without torch.compile):", e)
+            
+        return model, tokenizer
+
 
     def get_chat_id(self):
         return self.chat_tree.chat_id
@@ -318,7 +430,7 @@ class ChatBot:
 
     def generate_response(self, messages, ):
         logger.info("Generating response")
-        total_tokens = 500
+        total_tokens = self.generation_length
         chunk_size = 20
         formatted_input = self.tokenizer.apply_chat_template(messages[:11]+messages[-10:], tokenize=False)
 
@@ -336,7 +448,8 @@ class ChatBot:
                 output = self.model.generate(
                     input_ids, 
                     max_new_tokens=tokens_to_generate, 
-                    temperature=0.6,  # Slightly randomized but still focused
+                    temperature=self.temperature,  # Slightly randomized but still focused
+                    top_p=self.top_p,
                     do_sample=True, 
                     pad_token_id=self.tokenizer.eos_token_id)
             

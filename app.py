@@ -80,6 +80,15 @@ def handle_chat(data):
     emit('chat_update', {'messages': updated_messages, 'type': 'stop'})
     logger.info("Chat response completed")
 
+
+@socketio.on('update_model_config')
+def handle_update_model_config(data):
+    try:
+        updated_config = chatbot.update_model_config(data)
+        emit('model_config_updated', {"success": True, "config": updated_config})
+    except ValueError as e:
+        emit('model_config_updated', {"success": False, "error": str(e)})
+
 @socketio.on('edit')
 def handle_edit(data):
     level = data.get('level', 0)

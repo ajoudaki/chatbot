@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Layout, Space, message, Spin, List, Typography } from 'antd';
 import { MessageItem, ChatInput, ChatHistorySidebar } from './components';
+import { ModelSettings } from './ModelSettings';
 import { useSocket, useAudio } from './hooks';
+
 
 const { Title } = Typography;
 const { Header, Content, Footer } = Layout;
@@ -17,6 +19,35 @@ const App = () => {
   const chatContainerRef = useRef(null);
   const socket = useSocket();
   const audioControls = useAudio();
+    
+    // Add new state after your existing state declarations
+    const [modelConfig, setModelConfig] = useState({
+      model_name: "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+      generation_length: 512,
+      temperature: 0.7,
+      top_p: 0.95
+    });
+    
+    // Add new socket listener in your main useEffect
+    useEffect(() => {
+      if (!socket) return;
+    
+      // Add this along with your other socket listeners
+      socket.on('model_config_updated', (data) => {
+        if (data.success) {
+          setModelConfig(data.config);
+          message.success('Model settings updated successfully');
+        } else {
+          message.error(data.error || 'Failed to update model settings');
+        }
+      });
+    
+      return () => {
+        // Add this to your cleanup
+        socket.off('model_config_updated');
+        // ... rest of your existing cleanup
+      };
+    }, [socket, currentChatId]);
 
   useEffect(() => {
     if (!socket) return;
@@ -215,9 +246,20 @@ const App = () => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Header style={{ background: '#fff', padding: '0 20px' }}>
-        <Title level={3}>Chatbot</Title>
-      </Header>
+    // Update your Header section in the return statement
+    <Header style={{ 
+      background: '#fff', 
+      padding: '0 20px',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center'
+    }}>
+      <Title level={3}>Chatbot</Title>
+      <ModelSettings 
+        socket={socket} 
+        currentConfig={modelConfig}
+      />
+    </Header>
       <Layout>
         <ChatHistorySidebar 
           chatList={chatList} 
