@@ -281,7 +281,10 @@ class ChatBot:
         """
         valid_models = [
             "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
-            "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B"
+            "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
+            "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
+            "meta-llama/Meta-Llama-3.1-8B-Instruct",
+            "meta-llama/Llama-3.2-3B-Instruct",
         ]
         
         # 1. Validate model_name
