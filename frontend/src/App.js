@@ -246,7 +246,6 @@ const App = () => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-    // Update your Header section in the return statement
     <Header style={{ 
       background: '#fff', 
       padding: '0 20px',
@@ -254,7 +253,7 @@ const App = () => {
       justifyContent: 'space-between',
       alignItems: 'center'
     }}>
-      <Title level={3}>Chatbot</Title>
+      <Title level={3}>Local Chatbot</Title>
       <ModelSettings 
         socket={socket} 
         currentConfig={modelConfig}
