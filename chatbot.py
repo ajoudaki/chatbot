@@ -285,6 +285,7 @@ class ChatBot:
             "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
             "meta-llama/Meta-Llama-3.1-8B-Instruct",
             "meta-llama/Llama-3.2-3B-Instruct",
+            "Qwen/Qwen2.5-14B-Instruct-1M"
         ]
         
         # 1. Validate model_name
@@ -435,7 +436,11 @@ class ChatBot:
         logger.info("Generating response")
         total_tokens = self.generation_length
         chunk_size = 20
-        formatted_input = self.tokenizer.apply_chat_template(messages[:11]+messages[-10:], tokenize=False)
+        formatted_input = self.tokenizer.apply_chat_template(
+            messages, 
+            tokenize=False,
+            add_generation_prompt=True,
+        )
 
         first_device = self.model.hf_device_map.get('transformer.wte', 0)
         

@@ -8,6 +8,7 @@ const MODEL_OPTIONS = [
   { label: 'DeepSeek-32B', value: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-32B' },
     {label: 'Llama-3.1-8B', value: 'meta-llama/Meta-Llama-3.1-8B-Instruct' },
     {label: 'Llama-3.2-3B', value: 'meta-llama/Llama-3.2-3B-Instruct' },
+    {label: 'Qwen/Qwen2.5-14B', value: 'Qwen/Qwen2.5-14B-Instruct-1M' },
 ];
 
 export const ModelSettings = ({ socket, currentConfig }) => {
