@@ -53,6 +53,8 @@ const App = () => {
     socket.on('chat_list', (data) => {
       const updatedChatList = data.chats.map(chat => ({
         id: chat.id,
+        name: chat.name,
+        last_modified: chat.last_modified,
         preview: chat.name, 
       }));
       setChatList(updatedChatList);
@@ -85,6 +87,12 @@ const App = () => {
       socket.emit('save_chat');
     }
   }, [messages, currentChatId, isChatSaved, socket]);
+
+    const handleChatNameEdit = (newName) => {
+      if (!currentChatId) return;
+      socket.emit('edit_chat_name', { name: newName });
+      setIsChatSaved(false);
+    };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -216,6 +224,7 @@ const App = () => {
           onChatSelect={handleLoadChat} 
           onNewChat={handleNewChat}
           currentChatId={currentChatId}
+          onUpdateChatName={handleChatNameEdit}
         />
         <Content style={{ padding: '20px' }}>
           <Space direction="vertical" style={{ width: '100%' }}>

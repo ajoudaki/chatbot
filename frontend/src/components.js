@@ -10,7 +10,9 @@ import {
   LeftOutlined, 
   RightOutlined,
   SyncOutlined,
-  PlusCircleOutlined
+  PlusCircleOutlined,
+  CheckOutlined,
+  CloseOutlined
 } from '@ant-design/icons';
 
 const { Text } = Typography;
@@ -191,7 +193,57 @@ export const ChatInput = ({ inputMessage, setInputMessage, handleSubmit, isLoadi
   );
 };
 
-export const ChatHistorySidebar = ({ chatList, onChatSelect, onNewChat, currentChatId }) => {
+export const ChatHistorySidebar = ({ 
+  chatList, 
+  onChatSelect, 
+  onNewChat, 
+  currentChatId,
+  onUpdateChatName 
+}) => {
+  const [editingChatId, setEditingChatId] = useState(null);
+  const [editingName, setEditingName] = useState('');
+
+  const handleEditStart = (chat, e) => {
+    e.stopPropagation();
+    setEditingChatId(chat.id);
+    setEditingName(chat.name);
+  };
+
+  const handleEditSubmit = (e) => {
+    e.stopPropagation();
+    if (editingName.trim()) {
+      onUpdateChatName(editingName);
+    }
+    setEditingChatId(null);
+  };
+
+  const handleEditCancel = (e) => {
+    e.stopPropagation();
+    setEditingChatId(null);
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+    
+    if (diffInDays === 0) {
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } else if (diffInDays === 1) {
+      return 'Yesterday';
+    } else if (diffInDays < 7) {
+      return date.toLocaleDateString([], { weekday: 'long' });
+    } else {
+      return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    }
+  };
+
+  // Sort chats by last_modified date
+  const sortedChatList = [...chatList].sort((a, b) => {
+    return new Date(b.last_modified) - new Date(a.last_modified);
+  });
+
   return (
     <Sider width={300} style={{ background: '#fff', padding: '20px' }}>
       <Button 
@@ -203,7 +255,7 @@ export const ChatHistorySidebar = ({ chatList, onChatSelect, onNewChat, currentC
         New Chat
       </Button>
       <List
-        dataSource={chatList}
+        dataSource={sortedChatList}
         renderItem={(chat) => (
           <List.Item 
             onClick={() => onChatSelect(chat.id)}
@@ -214,9 +266,52 @@ export const ChatHistorySidebar = ({ chatList, onChatSelect, onNewChat, currentC
               borderRadius: '4px'
             }}
           >
-            <Text ellipsis={true} style={{ width: '100%' }}>
-              {chat.preview || 'New Chat'}
-            </Text>
+            <div style={{ width: '100%' }}>
+              {editingChatId === chat.id ? (
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  <Input
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    onPressEnter={handleEditSubmit}
+                    onClick={(e) => e.stopPropagation()}
+                    autoFocus
+                  />
+                  <Space>
+                    <Button 
+                      size="small" 
+                      icon={<CheckOutlined />} 
+                      onClick={handleEditSubmit}
+                    />
+                    <Button 
+                      size="small" 
+                      icon={<CloseOutlined />} 
+                      onClick={handleEditCancel}
+                    />
+                  </Space>
+                </Space>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text ellipsis style={{ maxWidth: '80%' }}>
+                      {chat.name || 'New Chat'}
+                    </Text>
+                    {chat.id === currentChatId && (
+                      <Tooltip title="Edit name">
+                        <Button
+                          type="text"
+                          icon={<EditOutlined />}
+                          onClick={(e) => handleEditStart(chat, e)}
+                          size="small"
+                        />
+                      </Tooltip>
+                    )}
+                  </div>
+                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                    {formatDate(chat.last_modified)}
+                  </Text>
+                </div>
+              )}
+            </div>
           </List.Item>
         )}
       />

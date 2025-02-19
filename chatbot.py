@@ -5,12 +5,13 @@ import logging
 import json
 import os
 import uuid
+from datetime import datetime
 
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 
 def get_deepseek():
     # Define model identifier for the 32B model
-    model_id = "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
+    model_id = "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
     
     # Configure 4-bit quantization
     bnb_config = BitsAndBytesConfig(
@@ -91,13 +92,22 @@ class ChatTree:
         self.current_node = self.root
         self.chat_id = str(uuid.uuid4())
         self.chat_name = ""  # New attribute to store the chat name
+        self.last_modified = datetime.now().isoformat()  # New: last modified date
         logger.info(f"Initialized ChatTree with ID: {self.chat_id}")
+    
+    def update_last_modified(self):
+        self.last_modified = datetime.now().isoformat()
 
+    def set_chat_name(self, new_name):
+        self.chat_name = new_name
+        self.update_last_modified()
+    
     def add_message(self, role, content):
         new_node = ChatNode(role, content)
         self.current_node.add_child(new_node)
         self.current_node.active_child_index = len(self.current_node.children) - 1
         self.current_node = new_node
+        self.update_last_modified()  # <-- update timestamp
         logger.info(f"Added new message: {role}")
         return new_node
 
@@ -116,7 +126,12 @@ class ChatTree:
         return history
     
     def get_full_chat_history(self):
-        return {'messages': self.get_chat_history(), 'id': self.chat_id, 'name': self.chat_name}
+        return {
+            'messages': self.get_chat_history(), 
+            'id': self.chat_id, 
+            'name': self.chat_name,
+            'last_modified': self.chat_tree.last_modified  # New field
+        }
 
     def regenerate_message(self, level=0):
         node = self.current_node
@@ -135,6 +150,7 @@ class ChatTree:
             logger.info(f"Created new branch for regenerated assistant message at level {level}")
         else:
             logger.warning(f"Attempted to regenerate a non-assistant message at level {level}")
+        self.update_last_modified()  # <-- update timestamp
         
         return self.get_chat_history()
 
@@ -154,6 +170,8 @@ class ChatTree:
             logger.info(f"Created new branch at level {level} with content: {new_content}")
         else:
             logger.warning(f"Attempted to edit a non-user message at level {level}")
+            
+        self.update_last_modified()  # <-- update timestamp
         
         return self.get_chat_history()
 
@@ -182,7 +200,7 @@ class ChatTree:
             logger.info(f"Changed active child to index {parent.active_child_index} and followed to leaf")
         else:
             logger.warning("Attempted to change active child of root node")
-
+        self.update_last_modified()  # <-- update timestamp
         return self.get_chat_history()
 
 
@@ -190,6 +208,7 @@ class ChatTree:
         return {
             'chat_id': self.chat_id,
             'chat_name': self.chat_name,
+            'last_modified': self.last_modified,  # New field
             'root': self.root.to_dict(),
             'current_node_path': self._get_current_node_path()
         }
@@ -199,6 +218,7 @@ class ChatTree:
         chat_tree = cls()
         chat_tree.chat_id = data['chat_id']
         chat_tree.chat_name = data.get('chat_name')  # Use get() in case older chat trees don't have this field
+        chat_tree.last_modified = data.get('last_modified', datetime.now().isoformat())
         chat_tree.root = ChatNode.from_dict(data['root'])
         
         # Restore current node
@@ -255,6 +275,11 @@ class ChatBot:
     
     def get_chat_name(self):
         return self.chat_tree.chat_name
+    
+    def edit_chat_name(self, new_name):
+        self.chat_tree.set_chat_name(new_name)
+        logger.info(f"Chat name updated to: {new_name}")
+        return self.get_full_chat_history()
 
     def generate_name(self, first_message):
         logger.info("Generating chat name based on first message")
@@ -268,7 +293,8 @@ class ChatBot:
                 input_ids, 
                 max_new_tokens=30,  # Limit to a short response
                 do_sample=True,
-                temperature=1.5,  # Slightly randomized but still focused
+                temperature=0.6,  # Slightly randomized but still focused
+                top_p=0.95,
                 pad_token_id=self.tokenizer.eos_token_id
             )
         
@@ -295,8 +321,10 @@ class ChatBot:
         total_tokens = 500
         chunk_size = 20
         formatted_input = self.tokenizer.apply_chat_template(messages[:11]+messages[-10:], tokenize=False)
+
+        first_device = self.model.hf_device_map.get('transformer.wte', 0)
         
-        input_ids = self.tokenizer.encode(formatted_input, return_tensors='pt', add_special_tokens=False).to('cuda')
+        input_ids = self.tokenizer.encode(formatted_input, return_tensors='pt', add_special_tokens=False).to(first_device)
         generated_text = self.chat_tree.current_node.content
         remaining_tokens = total_tokens
         first_chunk = True
@@ -308,7 +336,7 @@ class ChatBot:
                 output = self.model.generate(
                     input_ids, 
                     max_new_tokens=tokens_to_generate, 
-                    temperature=1.5,  # Slightly randomized but still focused
+                    temperature=0.6,  # Slightly randomized but still focused
                     do_sample=True, 
                     pad_token_id=self.tokenizer.eos_token_id)
             
@@ -402,7 +430,9 @@ class ChatBot:
             with open(filepath, 'r') as f:
                 data = json.load(f)
             chat_name = data.get('chat_name', 'Unnamed Chat')
-            chat_info.append({'id': chat_id, 'name': chat_name})
+            last_modified = data.get('last_modified', '')
+            chat_info.append({'id': chat_id, 'name': chat_name, 'last_modified': last_modified})
+
         return chat_info
 
 

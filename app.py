@@ -100,6 +100,15 @@ def handle_change_active_child(data):
     emit('chat_update', {'messages': updated_messages, 'type': 'navigation'})
     logger.info("Navigation completed")
 
+
+@socketio.on('edit_chat_name')
+def handle_edit_chat_name(data):
+    new_name = data.get('name', '')
+    logger.info(f"Editing chat name to: {new_name}")
+    updated_history = chatbot.edit_chat_name(new_name)
+    chatbot.save_chat_tree()  # Save updated name and timestamp
+    emit('chat_update', updated_history)
+
 @socketio.on('regenerate')
 def handle_regenerate(data):
     level = data.get('level', 0)
