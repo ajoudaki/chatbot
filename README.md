@@ -11,8 +11,11 @@ The UI part is based on React and supports a chat history and key chat functions
 - Editing a query
 - In case of regeneration or editting a response, the chat history is preserved as a tree and can be traversed
 - Recording a voice instead of typing
+- Automatic setting of the conversation title 
 
 The backend is written in `flask` and is using `torch` and `transformers` library to load and use LLMs for the language generation.
+
+I didn't use a database for simplicity, just storing chat history in files. Will be nice to add a database later. 
   
 Here's a quick snapshot of the UI:
 ![Alt text](./assets/app.png)
