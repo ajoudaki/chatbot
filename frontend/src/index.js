@@ -1,15 +1,20 @@
 import React from 'react';
-import ReactDOM from 'react-dom';
-import 'antd/dist/reset.css';  // Add this line if you want to use Ant Design's reset styles
-import './index.css';  // Your custom styles
-import ChatApp from './App';
+import { createRoot } from 'react-dom/client';
+import 'antd/dist/reset.css';
+import './index.css';
+import App from './App';
 import reportWebVitals from './reportWebVitals';
 
+// Create root using the new React 18 API
+const root = createRoot(document.getElementById('root'));
 
-ReactDOM.render(
+// Render your app
+root.render(
   <React.StrictMode>
-    <ChatApp />
-  </React.StrictMode>,
-  document.getElementById('root')
+    <App />
+  </React.StrictMode>
 );
 
+// If you want to start measuring performance in your app, pass a function
+// to log results (for example: reportWebVitals(console.log))
+reportWebVitals();

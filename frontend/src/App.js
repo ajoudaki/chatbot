@@ -1,11 +1,25 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Layout, Space, message, Spin, List, Typography, Modal } from 'antd';
-import { MessageItem, ChatInput, ChatHistorySidebar } from './components';
+import { BrowserRouter as Router, Routes, Route, useNavigate, useParams } from 'react-router-dom';
+import { MessageItem, ChatInput } from './components';
 import { ModelSettings } from './ModelSettings';
+import ChatNavigation from './ChatHistorySidebar';
 import { useSocket, useAudio } from './hooks';
 
 const { Title } = Typography;
-const { Header, Content, Footer } = Layout;
+const { Header, Content } = Layout;
+
+// Wrapper component to handle routing
+const AppWrapper = () => {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<App />} />
+        <Route path="/chat/:chatId" element={<App />} />
+      </Routes>
+    </Router>
+  );
+};
 
 const App = () => {
   const [messages, setMessages] = useState([]);
@@ -18,13 +32,22 @@ const App = () => {
   const chatContainerRef = useRef(null);
   const socket = useSocket();
   const audioControls = useAudio();
-    
+  const navigate = useNavigate();
+  const { chatId } = useParams();
+
   const [modelConfig, setModelConfig] = useState({
     model_name: "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
     generation_length: 512,
     temperature: 0.7,
     top_p: 0.95
   });
+
+  // Sync URL chatId with current chat
+  useEffect(() => {
+    if (socket && chatId && chatId !== currentChatId) {
+      handleLoadChat(chatId);
+    }
+  }, [socket, chatId]);
 
   useEffect(() => {
     if (!socket) return;
@@ -39,13 +62,11 @@ const App = () => {
     });
 
     socket.on('chat_history', (data) => {
-      console.log('Received chat history:', data.messages);
       setMessages(data.messages);
       setIsChatSaved(true);
     });
 
     socket.on('chat_update', (data) => {
-      console.log('Received chat update:', data);
       setMessages(data.messages);
       setIsLoading(data.type !== 'stop' && data.type !== 'navigation');
       
@@ -55,7 +76,6 @@ const App = () => {
     });
 
     socket.on('chat_saved', (data) => {
-      console.log(`Chat saved successfully: ${data.filepath}`);
       setIsChatSaved(true);
       socket.emit('list_chats');
     });
@@ -63,8 +83,9 @@ const App = () => {
     socket.on('new_chat_started', (data) => {
       setCurrentChatId(data.chat_id);
       setIsChatSaved(false);
-      message.success(`New chat started`);
+      message.success('New chat started');
       socket.emit('list_chats');
+      navigate(`/chat/${data.chat_id}`);
     });
 
     socket.on('chat_list', (data) => {
@@ -72,7 +93,7 @@ const App = () => {
         id: chat.id,
         name: chat.name,
         last_modified: chat.last_modified,
-        preview: chat.name, 
+        preview: chat.name,
       }));
       setChatList(updatedChatList);
     });
@@ -82,6 +103,7 @@ const App = () => {
         if (currentChatId === data.chat_id) {
           setCurrentChatId(null);
           setMessages([]);
+          navigate('/');
         }
         message.success('Chat deleted successfully');
         socket.emit('list_chats');
@@ -106,7 +128,7 @@ const App = () => {
       socket.off('chat_deleted');
       socket.off('error');
     };
-  }, [socket, currentChatId]);
+  }, [socket, currentChatId, navigate]);
 
   useEffect(() => {
     if (chatContainerRef.current) {
@@ -120,25 +142,19 @@ const App = () => {
     }
   }, [messages, currentChatId, isChatSaved, socket]);
 
-    const handleDeleteChat = (chatId) => {
-      Modal.confirm({
-        title: 'Delete Chat',
-        content: 'Are you sure you want to delete this chat? This action cannot be undone.',
-        okText: 'Delete',
-        okType: 'danger',
-        cancelText: 'Cancel',
-        onOk() {
-          console.log('Attempting to delete chat:', chatId);
-          socket.emit('delete_chat', { chat_id: chatId });
-          
-          // Add error handling
-          socket.on('connect_error', (error) => {
-            console.error('Socket connection error:', error);
-            message.error('Connection error while trying to delete chat');
-          });
-        },
-      });
-    };
+  const handleDeleteChat = (chatId) => {
+    Modal.confirm({
+      title: 'Delete Chat',
+      content: 'Are you sure you want to delete this chat? This action cannot be undone.',
+      okText: 'Delete',
+      okType: 'danger',
+      cancelText: 'Cancel',
+      onOk() {
+        console.log('Attempting to delete chat:', chatId);
+        socket.emit('delete_chat', { chat_id: chatId });
+      },
+    });
+  };
 
   const handleChatNameEdit = (newName) => {
     if (!currentChatId) return;
@@ -234,12 +250,14 @@ const App = () => {
   const handleNewChat = () => {
     socket.emit('new_chat');
     setIsChatSaved(false);
+    navigate('/');
   };
 
   const handleLoadChat = (chatId) => {
     socket.emit('load_chat', { chat_id: chatId });
     setCurrentChatId(chatId);
     setIsChatSaved(true);
+    navigate(`/chat/${chatId}`);
   };
 
   const handleContinue = useCallback(() => {
@@ -265,101 +283,101 @@ const App = () => {
     return -1;
   }, [messages]);
 
-    return (
-      <Layout style={{ minHeight: '100vh', maxHeight: '100vh', overflow: 'hidden' }}>
-        <Header style={{ 
-          background: '#fff', 
-          padding: '0 20px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          height: '64px',
-          position: 'fixed',
-          width: '100%',
-          top: 0,
-          zIndex: 1000,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-        }}>
-          <Title level={3}>Local Chatbot</Title>
-          <ModelSettings 
-            socket={socket} 
-            currentConfig={modelConfig}
-          />
-        </Header>
-        <Layout style={{ marginTop: '64px', height: 'calc(100vh - 64px)' }}>
-          <ChatHistorySidebar 
-            chatList={chatList} 
-            onChatSelect={handleLoadChat} 
-            onNewChat={handleNewChat}
-            currentChatId={currentChatId}
-            onUpdateChatName={handleChatNameEdit}
-            onDeleteChat={handleDeleteChat}
-          />
-          <Layout>
-            <Content style={{ 
+  return (
+    <Layout style={{ minHeight: '100vh', maxHeight: '100vh', overflow: 'hidden' }}>
+      <Header style={{ 
+        background: '#fff', 
+        padding: '0 20px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        height: '64px',
+        position: 'fixed',
+        width: '100%',
+        top: 0,
+        zIndex: 1000,
+        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+      }}>
+        <Title level={3}>Local Chatbot</Title>
+        <ModelSettings 
+          socket={socket} 
+          currentConfig={modelConfig}
+        />
+      </Header>
+      <Layout style={{ marginTop: '64px', height: 'calc(100vh - 64px)' }}>
+        <ChatNavigation 
+          chats={chatList}
+          currentChatId={currentChatId}
+          onChatSelect={handleLoadChat}
+          onNewChat={handleNewChat}
+          onUpdateChatName={handleChatNameEdit}
+          onDeleteChat={handleDeleteChat}
+        />
+        <Layout>
+          <Content style={{ 
+            padding: '12px',
+            height: 'calc(100vh - 64px)',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
+            <div ref={chatContainerRef} style={{
+              flex: 1,
+              overflowY: 'auto',
+              border: '1px solid #d9d9d9',
+              borderRadius: '4px',
               padding: '12px',
-              height: 'calc(100vh - 64px)',
-              display: 'flex',
-              flexDirection: 'column'
+              marginBottom: '12px'
             }}>
-              <div ref={chatContainerRef} style={{
-                flex: 1,
-                overflowY: 'auto',
-                border: '1px solid #d9d9d9',
-                borderRadius: '4px',
-                padding: '12px',
-                marginBottom: '12px'
-              }}>
-                {isLoading && <Spin style={{ display: 'block', textAlign: 'center', marginBottom: '8px' }} />}
-                <List
-                  itemLayout="horizontal"
-                  dataSource={messages}
-                  style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    gap: '4px' 
-                  }}
-                  renderItem={(item, index) => (
-                    <List.Item style={{
-                      justifyContent: item.role === 'user' ? 'flex-end' : 'flex-start',
-                      padding: '4px 0',
-                      margin: 0
+              {isLoading && <Spin style={{ display: 'block', textAlign: 'center', marginBottom: '8px' }} />}
+              <List
+                itemLayout="horizontal"
+                dataSource={messages}
+                style={{ 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  gap: '4px' 
+                }}
+                renderItem={(item, index) => (
+                  <List.Item style={{
+                    justifyContent: item.role === 'user' ? 'flex-end' : 'flex-start',
+                    padding: '4px 0',
+                    margin: 0
+                  }}>
+                    <div style={{ 
+                      width: '95%', 
+                      display: 'flex', 
+                      justifyContent: item.role === 'user' ? 'flex-end' : 'flex-start'
                     }}>
-                      <div style={{ 
-                        width: '95%', 
-                        display: 'flex', 
-                        justifyContent: item.role === 'user' ? 'flex-end' : 'flex-start'
-                      }}>
-                        <MessageItem
-                          item={item}
-                          index={index}
-                          editingIndex={editingIndex}
-                          setEditingIndex={setEditingIndex}
-                          handleEdit={handleEdit}
-                          handleCopy={handleCopy}
-                          handleChangeActiveChild={handleChangeActiveChild}
-                          isLastSystemMessage={index === getLastSystemMessageIndex()}
-                          handleContinue={handleContinue}
-                          handleRegenerate={handleRegenerate}
-                          isLoading={isLoading}
-                        />
-                      </div>
-                    </List.Item>
-                  )}
-                />
-              </div>
-              <ChatInput
-                inputMessage={inputMessage}
-                setInputMessage={setInputMessage}
-                handleSubmit={handleSubmit}
-                isLoading={isLoading}
-                audioControls={audioControls}
+                      <MessageItem
+                        item={item}
+                        index={index}
+                        editingIndex={editingIndex}
+                        setEditingIndex={setEditingIndex}
+                        handleEdit={handleEdit}
+                        handleCopy={handleCopy}
+                        handleChangeActiveChild={handleChangeActiveChild}
+                        isLastSystemMessage={index === getLastSystemMessageIndex()}
+                        handleContinue={handleContinue}
+                        handleRegenerate={handleRegenerate}
+                        isLoading={isLoading}
+                      />
+                    </div>
+                  </List.Item>
+                )}
               />
-            </Content>
-          </Layout>
+            </div>
+            <ChatInput
+              inputMessage={inputMessage}
+              setInputMessage={setInputMessage}
+              handleSubmit={handleSubmit}
+              isLoading={isLoading}
+              audioControls={audioControls}
+            />
+          </Content>
         </Layout>
       </Layout>
-    );
+    </Layout>
+  );
 };
 
-export default App;
+export default AppWrapper;

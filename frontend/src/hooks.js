@@ -1,20 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import io from 'socket.io-client';
 import { message } from 'antd';
 
-
 export const useSocket = () => {
   const [socket, setSocket] = useState(null);
-
+  
   useEffect(() => {
     const newSocket = io('http://localhost:5000');
     setSocket(newSocket);
-
     newSocket.on('connect', () => console.log('Socket connected'));
-
     return () => newSocket.close();
   }, []);
-
+  
   return socket;
 };
 
@@ -34,12 +32,12 @@ export const useAudio = () => {
       mediaRecorderRef.current.ondataavailable = (event) => {
         audioChunks.push(event.data);
       };
-
+      
       mediaRecorderRef.current.onstop = () => {
         const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
         setAudioBlob(audioBlob);
       };
-
+      
       mediaRecorderRef.current.start();
       setIsRecording(true);
     } catch (error) {
@@ -69,5 +67,33 @@ export const useAudio = () => {
     setIsPlaying(false);
   }, []);
 
-  return { isRecording, audioBlob, isPlaying, startRecording, stopRecording, playRecording, pauseRecording, setAudioBlob };
+  return {
+    isRecording,
+    audioBlob,
+    isPlaying,
+    startRecording,
+    stopRecording,
+    playRecording,
+    pauseRecording,
+    setAudioBlob
+  };
+};
+
+export const useUrlNavigation = () => {
+  const navigate = useNavigate();
+  const { chatId } = useParams();
+
+  const navigateToChat = useCallback((id) => {
+    navigate(`/chat/${id}`);
+  }, [navigate]);
+
+  const navigateToHome = useCallback(() => {
+    navigate('/');
+  }, [navigate]);
+
+  return {
+    currentChatId: chatId,
+    navigateToChat,
+    navigateToHome
+  };
 };
