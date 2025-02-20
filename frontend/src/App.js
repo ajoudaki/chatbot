@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Layout, Space, message, Spin, List, Typography } from 'antd';
+import { Layout, Space, message, Spin, List, Typography, Modal } from 'antd';
 import { MessageItem, ChatInput, ChatHistorySidebar } from './components';
 import { ModelSettings } from './ModelSettings';
 import { useSocket, useAudio } from './hooks';
-
 
 const { Title } = Typography;
 const { Header, Content, Footer } = Layout;
@@ -20,37 +19,24 @@ const App = () => {
   const socket = useSocket();
   const audioControls = useAudio();
     
-    // Add new state after your existing state declarations
-    const [modelConfig, setModelConfig] = useState({
-      model_name: "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
-      generation_length: 512,
-      temperature: 0.7,
-      top_p: 0.95
-    });
-    
-    // Add new socket listener in your main useEffect
-    useEffect(() => {
-      if (!socket) return;
-    
-      // Add this along with your other socket listeners
-      socket.on('model_config_updated', (data) => {
-        if (data.success) {
-          setModelConfig(data.config);
-          message.success('Model settings updated successfully');
-        } else {
-          message.error(data.error || 'Failed to update model settings');
-        }
-      });
-    
-      return () => {
-        // Add this to your cleanup
-        socket.off('model_config_updated');
-        // ... rest of your existing cleanup
-      };
-    }, [socket, currentChatId]);
+  const [modelConfig, setModelConfig] = useState({
+    model_name: "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+    generation_length: 512,
+    temperature: 0.7,
+    top_p: 0.95
+  });
 
   useEffect(() => {
     if (!socket) return;
+
+    socket.on('model_config_updated', (data) => {
+      if (data.success) {
+        setModelConfig(data.config);
+        message.success('Model settings updated successfully');
+      } else {
+        message.error(data.error || 'Failed to update model settings');
+      }
+    });
 
     socket.on('chat_history', (data) => {
       console.log('Received chat history:', data.messages);
@@ -91,6 +77,19 @@ const App = () => {
       setChatList(updatedChatList);
     });
 
+    socket.on('chat_deleted', (data) => {
+      if (data.success) {
+        if (currentChatId === data.chat_id) {
+          setCurrentChatId(null);
+          setMessages([]);
+        }
+        message.success('Chat deleted successfully');
+        socket.emit('list_chats');
+      } else {
+        message.error(data.error || 'Failed to delete chat');
+      }
+    });
+
     socket.on('error', (data) => {
       message.error(data.message);
     });
@@ -98,11 +97,13 @@ const App = () => {
     socket.emit('list_chats');
 
     return () => {
+      socket.off('model_config_updated');
       socket.off('chat_history');
       socket.off('chat_update');
       socket.off('chat_saved');
       socket.off('new_chat_started');
       socket.off('chat_list');
+      socket.off('chat_deleted');
       socket.off('error');
     };
   }, [socket, currentChatId]);
@@ -119,11 +120,31 @@ const App = () => {
     }
   }, [messages, currentChatId, isChatSaved, socket]);
 
-    const handleChatNameEdit = (newName) => {
-      if (!currentChatId) return;
-      socket.emit('edit_chat_name', { name: newName });
-      setIsChatSaved(false);
+    const handleDeleteChat = (chatId) => {
+      Modal.confirm({
+        title: 'Delete Chat',
+        content: 'Are you sure you want to delete this chat? This action cannot be undone.',
+        okText: 'Delete',
+        okType: 'danger',
+        cancelText: 'Cancel',
+        onOk() {
+          console.log('Attempting to delete chat:', chatId);
+          socket.emit('delete_chat', { chat_id: chatId });
+          
+          // Add error handling
+          socket.on('connect_error', (error) => {
+            console.error('Socket connection error:', error);
+            message.error('Connection error while trying to delete chat');
+          });
+        },
+      });
     };
+
+  const handleChatNameEdit = (newName) => {
+    if (!currentChatId) return;
+    socket.emit('edit_chat_name', { name: newName });
+    setIsChatSaved(false);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -233,7 +254,7 @@ const App = () => {
     });
     setIsLoading(true);
     setIsChatSaved(false);
-  }, [socket,messages]);
+  }, [socket, messages]);
 
   const getLastSystemMessageIndex = useCallback(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -246,19 +267,19 @@ const App = () => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-    <Header style={{ 
-      background: '#fff', 
-      padding: '0 20px',
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center'
-    }}>
-      <Title level={3}>Local Chatbot</Title>
-      <ModelSettings 
-        socket={socket} 
-        currentConfig={modelConfig}
-      />
-    </Header>
+      <Header style={{ 
+        background: '#fff', 
+        padding: '0 20px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <Title level={3}>Local Chatbot</Title>
+        <ModelSettings 
+          socket={socket} 
+          currentConfig={modelConfig}
+        />
+      </Header>
       <Layout>
         <ChatHistorySidebar 
           chatList={chatList} 
@@ -266,8 +287,9 @@ const App = () => {
           onNewChat={handleNewChat}
           currentChatId={currentChatId}
           onUpdateChatName={handleChatNameEdit}
+          onDeleteChat={handleDeleteChat}
         />
-        <Content style={{ padding: '20px' }}>
+        <Content style={{ padding: '20px', marginLeft: '300px' }}>
           <Space direction="vertical" style={{ width: '100%' }}>
             <div ref={chatContainerRef} style={{
               height: 'calc(100vh - 200px)',
@@ -314,7 +336,9 @@ const App = () => {
           </Space>
         </Content>
       </Layout>
-      <Footer style={{ textAlign: 'center' }}>Chatbot ©2024 Created by Amir Joudaki</Footer>
+      <Footer style={{ textAlign: 'center', marginLeft: '300px' }}>
+        Chatbot ©2024 Created by Amir Joudaki
+      </Footer>
     </Layout>
   );
 };

@@ -12,8 +12,10 @@ import {
   SyncOutlined,
   PlusCircleOutlined,
   CheckOutlined,
+  DeleteOutlined,
   CloseOutlined
 } from '@ant-design/icons';
+
 
 const { Text } = Typography;
 const { Header, Content, Footer, Sider } = Layout;
@@ -199,7 +201,8 @@ export const ChatHistorySidebar = ({
   onChatSelect, 
   onNewChat, 
   currentChatId,
-  onUpdateChatName 
+  onUpdateChatName,
+  onDeleteChat  // New prop
 }) => {
   const [editingChatId, setEditingChatId] = useState(null);
   const [editingName, setEditingName] = useState('');
@@ -223,6 +226,11 @@ export const ChatHistorySidebar = ({
     setEditingChatId(null);
   };
 
+  const handleDelete = (chatId, e) => {
+    e.stopPropagation();
+    onDeleteChat(chatId);
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
@@ -240,7 +248,6 @@ export const ChatHistorySidebar = ({
     }
   };
 
-  // Sort chats by last_modified date
   const sortedChatList = [...chatList].sort((a, b) => {
     return new Date(b.last_modified) - new Date(a.last_modified);
   });
@@ -250,7 +257,7 @@ export const ChatHistorySidebar = ({
       width={300} 
       style={{ 
         background: '#fff',
-        height: 'calc(100vh - 64px)', // Subtract header height
+        height: 'calc(100vh - 64px)',
         overflow: 'hidden'
       }}
     >
@@ -272,8 +279,8 @@ export const ChatHistorySidebar = ({
           flex: 1,
           overflowY: 'auto',
           overflowX: 'hidden',
-          marginRight: '-8px', // Compensate for scrollbar
-          paddingRight: '8px'  // Add padding to maintain spacing
+          marginRight: '-8px',
+          paddingRight: '8px'
         }}>
           <List
             dataSource={sortedChatList}
@@ -314,18 +321,29 @@ export const ChatHistorySidebar = ({
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Text ellipsis style={{ maxWidth: '80%' }}>
+                        <Text ellipsis style={{ maxWidth: '60%' }}>
                           {chat.name || 'New Chat'}
                         </Text>
                         {chat.id === currentChatId && (
-                          <Tooltip title="Edit name">
-                            <Button
-                              type="text"
-                              icon={<EditOutlined />}
-                              onClick={(e) => handleEditStart(chat, e)}
-                              size="small"
-                            />
-                          </Tooltip>
+                          <Space>
+                            <Tooltip title="Edit name">
+                              <Button
+                                type="text"
+                                icon={<EditOutlined />}
+                                onClick={(e) => handleEditStart(chat, e)}
+                                size="small"
+                              />
+                            </Tooltip>
+                            <Tooltip title="Delete chat">
+                              <Button
+                                type="text"
+                                danger
+                                icon={<DeleteOutlined />}
+                                onClick={(e) => handleDelete(chat.id, e)}
+                                size="small"
+                              />
+                            </Tooltip>
+                          </Space>
                         )}
                       </div>
                       <Text type="secondary" style={{ fontSize: '12px' }}>

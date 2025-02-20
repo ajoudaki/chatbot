@@ -51,7 +51,7 @@ class ChatNode:
 
 class ChatTree:
     def __init__(self):
-        self.root = ChatNode("user", "You are a helpful language assistant that are always factually correct.")
+        self.root = ChatNode("user", "You are an obedient language assistant.")
         self.current_node = self.root
         self.chat_id = str(uuid.uuid4())
         self.chat_name = ""  # New attribute to store the chat name
@@ -282,10 +282,12 @@ class ChatBot:
         valid_models = [
             "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
             "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
-            "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
-            "meta-llama/Meta-Llama-3.1-8B-Instruct",
+            "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",
+            "meta-llama/Llama-3.1-8B-Instruct",
             "meta-llama/Llama-3.2-3B-Instruct",
-            "Qwen/Qwen2.5-14B-Instruct-1M"
+            "Qwen/Qwen2.5-14B-Instruct-1M",
+            "meta-llama/Llama-3.3-70B-Instruct",
+            "mistralai/Mistral-Small-24B-Instruct-2501",
         ]
         
         # 1. Validate model_name
@@ -373,7 +375,7 @@ class ChatBot:
             self.model_name,
             quantization_config=bnb_config,
             device_map="balanced",         # distribute layers across GPUs
-            max_memory=max_memory,         # force all modules onto the GPUs
+            max_memory=None,         # force all modules onto the GPUs
             torch_dtype=torch.float16,     # load weights in FP16
             trust_remote_code=True         # needed for custom Qwen implementations
         )
@@ -396,6 +398,25 @@ class ChatBot:
         self.chat_tree.set_chat_name(new_name)
         logger.info(f"Chat name updated to: {new_name}")
         return self.get_full_chat_history()
+
+    def delete_chat(self, chat_id):
+        """Delete a chat file and its associated data."""
+        if chat_id == self.chat_tree.chat_id:
+            # If deleting current chat, reset to a new chat
+            self.start_new_chat()
+        
+        filename = f"{chat_id}.json"
+        filepath = os.path.join(self.chat_dir, filename)
+        
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"No chat history found for ID: {chat_id}")
+        
+        try:
+            os.remove(filepath)
+            logger.info(f"Deleted chat file: {filepath}")
+        except Exception as e:
+            logger.error(f"Error deleting chat file: {e}")
+            raise
 
     def generate_name(self, first_message):
         logger.info("Generating chat name based on first message")

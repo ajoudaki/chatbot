@@ -71,6 +71,19 @@ def handle_new_chat():
     emit('new_chat_started', {'chat_id': chatbot.get_chat_id()})
     emit('chat_history', {'messages': chatbot.get_chat_history()})
 
+
+@socketio.on('delete_chat')
+def handle_delete_chat(data):
+    chat_id = data.get('chat_id')
+    logger.info(f"Deleting chat with ID: {chat_id}")
+    try:
+        chatbot.delete_chat(chat_id)
+        emit('chat_deleted', {'success': True, 'chat_id': chat_id})
+    except Exception as e:
+        logger.error(f"Error deleting chat: {e}")
+        emit('chat_deleted', {'success': False, 'error': str(e)})
+
+
 @socketio.on('chat')
 def handle_chat(data):
     user_message = data.get('message', '')
