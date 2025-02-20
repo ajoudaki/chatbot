@@ -295,7 +295,7 @@ const App = () => {
             onUpdateChatName={handleChatNameEdit}
             onDeleteChat={handleDeleteChat}
           />
-          <Layout style={{ marginLeft: '300px' }}>
+          <Layout>
             <Content style={{ 
               padding: '12px',
               height: 'calc(100vh - 64px)',
