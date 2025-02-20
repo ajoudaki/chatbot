@@ -187,22 +187,25 @@ const App = () => {
     setIsChatSaved(false);
   };
 
-  const uploadAudio = async (blob) => {
-    const formData = new FormData();
-    formData.append('audio', blob, 'audio.webm');
-
-    const response = await fetch('/api/upload_audio', {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to upload audio');
-    }
-
-    const data = await response.json();
-    return data.filename;
-  };
+    const uploadAudio = async (blob) => {
+      const formData = new FormData();
+      
+      // Create a new File object with the correct MIME type
+      const file = new File([blob], 'audio.webm', { type: 'audio/webm' });
+      formData.append('audio', file);
+    
+      const response = await fetch('/api/upload_audio', {
+        method: 'POST',
+        body: formData,
+      });
+    
+      if (!response.ok) {
+        throw new Error('Failed to upload audio');
+      }
+    
+      const data = await response.json();
+      return data.filename;
+    };
 
   const transcribeAudio = async (filename) => {
     const response = await fetch('/api/transcribe', {

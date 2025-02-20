@@ -161,21 +161,29 @@ def upload_audio():
     if 'audio' not in request.files:
         logger.warning("No file part in the request")
         return jsonify({'error': 'No file part in the request'}), 400
-    file = request.files['audio']
     
+    file = request.files['audio']
     if file.filename == '':
         logger.warning("No selected file")
         return jsonify({'error': 'No selected file'}), 400
     
-    if file and file.filename.endswith('.webm'):
-        filename = secure_filename(file.filename)
-        webm_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    # Check the MIME type instead of file extension
+    if file and file.content_type == 'audio/webm':
+        # Generate a random filename with .webm extension
+        import uuid
+        random_filename = f"{uuid.uuid4()}.webm"
+        
+        webm_path = os.path.join(app.config['UPLOAD_FOLDER'], random_filename)
         file.save(webm_path)
-        logger.info(f"File uploaded successfully: {filename}")
-        return jsonify({'message': 'File uploaded successfully', 'filename': filename}), 200
+        logger.info(f"File uploaded successfully with generated name: {random_filename}")
+        return jsonify({
+            'message': 'File uploaded successfully',
+            'filename': random_filename
+        }), 200
     else:
-        logger.warning("Invalid file type")
-        return jsonify({'error': 'Invalid file type'}), 400
+        logger.warning(f"Invalid file type: {file.content_type}")
+        return jsonify({'error': 'Invalid file type - only audio/webm is supported'}), 400
+        
 
 @app.route('/api/transcribe', methods=['POST'])
 def transcribe():
