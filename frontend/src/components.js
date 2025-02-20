@@ -193,6 +193,7 @@ export const ChatInput = ({ inputMessage, setInputMessage, handleSubmit, isLoadi
   );
 };
 
+
 export const ChatHistorySidebar = ({ 
   chatList, 
   onChatSelect, 
@@ -245,76 +246,99 @@ export const ChatHistorySidebar = ({
   });
 
   return (
-    <Sider width={300} style={{ background: '#fff', padding: '20px' }}>
-      <Button 
-        type="primary" 
-        icon={<PlusCircleOutlined />} 
-        onClick={onNewChat}
-        style={{ marginBottom: '20px', width: '100%' }}
-      >
-        New Chat
-      </Button>
-      <List
-        dataSource={sortedChatList}
-        renderItem={(chat) => (
-          <List.Item 
-            onClick={() => onChatSelect(chat.id)}
-            style={{ 
-              cursor: 'pointer',
-              backgroundColor: chat.id === currentChatId ? '#e6f7ff' : 'transparent',
-              padding: '10px',
-              borderRadius: '4px'
-            }}
-          >
-            <div style={{ width: '100%' }}>
-              {editingChatId === chat.id ? (
-                <Space direction="vertical" style={{ width: '100%' }}>
-                  <Input
-                    value={editingName}
-                    onChange={(e) => setEditingName(e.target.value)}
-                    onPressEnter={handleEditSubmit}
-                    onClick={(e) => e.stopPropagation()}
-                    autoFocus
-                  />
-                  <Space>
-                    <Button 
-                      size="small" 
-                      icon={<CheckOutlined />} 
-                      onClick={handleEditSubmit}
-                    />
-                    <Button 
-                      size="small" 
-                      icon={<CloseOutlined />} 
-                      onClick={handleEditCancel}
-                    />
-                  </Space>
-                </Space>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text ellipsis style={{ maxWidth: '80%' }}>
-                      {chat.name || 'New Chat'}
-                    </Text>
-                    {chat.id === currentChatId && (
-                      <Tooltip title="Edit name">
-                        <Button
-                          type="text"
-                          icon={<EditOutlined />}
-                          onClick={(e) => handleEditStart(chat, e)}
-                          size="small"
+    <Sider 
+      width={300} 
+      style={{ 
+        background: '#fff',
+        height: 'calc(100vh - 64px)', // Subtract header height
+        overflow: 'hidden'
+      }}
+    >
+      <div style={{ 
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        padding: '20px'
+      }}>
+        <Button 
+          type="primary" 
+          icon={<PlusCircleOutlined />} 
+          onClick={onNewChat}
+          style={{ marginBottom: '20px' }}
+        >
+          New Chat
+        </Button>
+        <div style={{ 
+          flex: 1,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          marginRight: '-8px', // Compensate for scrollbar
+          paddingRight: '8px'  // Add padding to maintain spacing
+        }}>
+          <List
+            dataSource={sortedChatList}
+            renderItem={(chat) => (
+              <List.Item 
+                onClick={() => onChatSelect(chat.id)}
+                style={{ 
+                  cursor: 'pointer',
+                  backgroundColor: chat.id === currentChatId ? '#e6f7ff' : 'transparent',
+                  padding: '10px',
+                  borderRadius: '4px',
+                  marginBottom: '8px'
+                }}
+              >
+                <div style={{ width: '100%' }}>
+                  {editingChatId === chat.id ? (
+                    <Space direction="vertical" style={{ width: '100%' }}>
+                      <Input
+                        value={editingName}
+                        onChange={(e) => setEditingName(e.target.value)}
+                        onPressEnter={handleEditSubmit}
+                        onClick={(e) => e.stopPropagation()}
+                        autoFocus
+                      />
+                      <Space>
+                        <Button 
+                          size="small" 
+                          icon={<CheckOutlined />} 
+                          onClick={handleEditSubmit}
                         />
-                      </Tooltip>
-                    )}
-                  </div>
-                  <Text type="secondary" style={{ fontSize: '12px' }}>
-                    {formatDate(chat.last_modified)}
-                  </Text>
+                        <Button 
+                          size="small" 
+                          icon={<CloseOutlined />} 
+                          onClick={handleEditCancel}
+                        />
+                      </Space>
+                    </Space>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text ellipsis style={{ maxWidth: '80%' }}>
+                          {chat.name || 'New Chat'}
+                        </Text>
+                        {chat.id === currentChatId && (
+                          <Tooltip title="Edit name">
+                            <Button
+                              type="text"
+                              icon={<EditOutlined />}
+                              onClick={(e) => handleEditStart(chat, e)}
+                              size="small"
+                            />
+                          </Tooltip>
+                        )}
+                      </div>
+                      <Text type="secondary" style={{ fontSize: '12px' }}>
+                        {formatDate(chat.last_modified)}
+                      </Text>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </List.Item>
-        )}
-      />
+              </List.Item>
+            )}
+          />
+        </div>
+      </div>
     </Sider>
   );
 };

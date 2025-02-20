@@ -6,9 +6,11 @@ const MODEL_OPTIONS = [
   { label: 'DeepSeek-7B', value: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-7B' },
   { label: 'DeepSeek-14B', value: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-14B' },
   { label: 'DeepSeek-32B', value: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-32B' },
-    {label: 'Llama-3.1-8B', value: 'meta-llama/Meta-Llama-3.1-8B-Instruct' },
-    {label: 'Llama-3.2-3B', value: 'meta-llama/Llama-3.2-3B-Instruct' },
     {label: 'Qwen/Qwen2.5-14B', value: 'Qwen/Qwen2.5-14B-Instruct-1M' },
+    {label: 'Llama-3.1-8B', value: 'meta-llama/Llama-3.1-8B-Instruct' },
+    {label: 'Llama-3.2-3B', value: 'meta-llama/Llama-3.2-3B-Instruct' },
+    {label: 'Llama-3.3-70B', value: 'meta-llama/Llama-3.3-70B-Instruct'},
+    {label: 'Mistral-24B', value: 'mistralai/Mistral-Small-24B-Instruct-2501'},
 ];
 
 export const ModelSettings = ({ socket, currentConfig }) => {
