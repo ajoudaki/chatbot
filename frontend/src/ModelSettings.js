@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
 import { Dropdown, Button, Modal, Form, InputNumber, Select, message, Slider } from 'antd';
 import { SettingOutlined } from '@ant-design/icons';
+import { styleUtils } from './styles/useTheme';
 
 const MODEL_OPTIONS = [
   { label: 'DeepSeek-7B', value: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-7B' },
   { label: 'DeepSeek-14B', value: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-14B' },
   { label: 'DeepSeek-32B', value: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-32B' },
-    {label: 'Qwen/Qwen2.5-14B', value: 'Qwen/Qwen2.5-14B-Instruct-1M' },
-    {label: 'Llama-3.1-8B', value: 'meta-llama/Llama-3.1-8B-Instruct' },
-    {label: 'Llama-3.2-3B', value: 'meta-llama/Llama-3.2-3B-Instruct' },
-    {label: 'Llama-3.3-70B', value: 'meta-llama/Llama-3.3-70B-Instruct'},
-    {label: 'Mistral-24B', value: 'mistralai/Mistral-Small-24B-Instruct-2501'},
+  { label: 'Qwen/Qwen2.5-14B', value: 'Qwen/Qwen2.5-14B-Instruct-1M' },
+  { label: 'Llama-3.1-8B', value: 'meta-llama/Llama-3.1-8B-Instruct' },
+  { label: 'Llama-3.2-3B', value: 'meta-llama/Llama-3.2-3B-Instruct' },
+  { label: 'Llama-3.3-70B', value: 'meta-llama/Llama-3.3-70B-Instruct'},
+  { label: 'Mistral-24B', value: 'mistralai/Mistral-Small-24B-Instruct-2501'},
 ];
 
 export const ModelSettings = ({ socket, currentConfig }) => {
@@ -35,7 +36,6 @@ export const ModelSettings = ({ socket, currentConfig }) => {
       
       socket.emit('update_model_config', values);
       
-      // Listen for response
       socket.once('model_config_updated', (response) => {
         setLoading(false);
         if (response.success) {
@@ -52,28 +52,22 @@ export const ModelSettings = ({ socket, currentConfig }) => {
   };
 
   const menu = (
-    <div style={{ 
-      padding: '16px',
-      backgroundColor: '#ffffff',
-      borderRadius: '8px',
-      boxShadow: '0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 9px 28px 8px rgba(0, 0, 0, 0.05)',
-      width: '300px',
-      border: '1px solid #f0f0f0',
-      position: 'relative',
-      zIndex: 1000
-    }}>
+    <div className="settings-dropdown">
       <Form 
         form={form} 
         layout="vertical" 
         initialValues={currentConfig}
-        style={{ backgroundColor: '#ffffff' }}
+        className="settings-form"
       >
         <Form.Item
           label="Model"
           name="model_name"
           rules={[{ required: true }]}
         >
-          <Select options={MODEL_OPTIONS} />
+          <Select 
+            options={MODEL_OPTIONS}
+            className="settings-select" 
+          />
         </Form.Item>
 
         <Form.Item
@@ -92,6 +86,7 @@ export const ModelSettings = ({ socket, currentConfig }) => {
               2048: '2048',
               4096: '4096'
             }}
+            className="settings-slider"
           />
         </Form.Item>
 
@@ -110,6 +105,7 @@ export const ModelSettings = ({ socket, currentConfig }) => {
               1: '1',
               2: '2'
             }}
+            className="settings-slider"
           />
         </Form.Item>
 
@@ -128,16 +124,12 @@ export const ModelSettings = ({ socket, currentConfig }) => {
               0.5: '0.5',
               1: '1'
             }}
+            className="settings-slider"
           />
         </Form.Item>
 
-        <Form.Item className="mb-0" style={{ marginBottom: 0 }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'flex-end', 
-            gap: '8px',
-            backgroundColor: '#ffffff'
-          }}>
+        <Form.Item className="settings-actions">
+          <div className="settings-buttons">
             <Button onClick={handleCancel}>
               Cancel
             </Button>
@@ -155,17 +147,9 @@ export const ModelSettings = ({ socket, currentConfig }) => {
       overlay={menu} 
       trigger={['click']}
       placement="bottomRight"
-      overlayStyle={{
-        backgroundColor: '#ffffff',
-        padding: 0,
-      }}
-      dropdownRender={menu => (
-        <div style={{ backgroundColor: '#ffffff' }}>
-          {menu}
-        </div>
-      )}
+      className="settings-dropdown-container"
     >
-      <Button icon={<SettingOutlined />} className="ml-2">
+      <Button icon={<SettingOutlined />} className="settings-trigger-button">
         Model Settings
       </Button>
     </Dropdown>

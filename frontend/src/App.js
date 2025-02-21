@@ -5,6 +5,8 @@ import { MessageItem, ChatInput } from './components';
 import { ModelSettings } from './ModelSettings';
 import ChatNavigation from './ChatHistorySidebar';
 import { useSocket, useAudio } from './hooks';
+import { useTheme, styleUtils } from './styles/useTheme';
+import './styles/global.css';
 
 const { Title } = Typography;
 const { Header, Content } = Layout;
@@ -22,6 +24,8 @@ const AppWrapper = () => {
 };
 
 const App = () => {
+  useTheme('light');
+  
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -42,7 +46,6 @@ const App = () => {
     top_p: 0.95
   });
 
-  // Sync URL chatId with current chat
   useEffect(() => {
     if (socket && chatId && chatId !== currentChatId) {
       handleLoadChat(chatId);
@@ -187,25 +190,23 @@ const App = () => {
     setIsChatSaved(false);
   };
 
-    const uploadAudio = async (blob) => {
-      const formData = new FormData();
-      
-      // Create a new File object with the correct MIME type
-      const file = new File([blob], 'audio.webm', { type: 'audio/webm' });
-      formData.append('audio', file);
-    
-      const response = await fetch('/api/upload_audio', {
-        method: 'POST',
-        body: formData,
-      });
-    
-      if (!response.ok) {
-        throw new Error('Failed to upload audio');
-      }
-    
-      const data = await response.json();
-      return data.filename;
-    };
+  const uploadAudio = async (blob) => {
+    const formData = new FormData();
+    const file = new File([blob], 'audio.webm', { type: 'audio/webm' });
+    formData.append('audio', file);
+  
+    const response = await fetch('/api/upload_audio', {
+      method: 'POST',
+      body: formData,
+    });
+  
+    if (!response.ok) {
+      throw new Error('Failed to upload audio');
+    }
+  
+    const data = await response.json();
+    return data.filename;
+  };
 
   const transcribeAudio = async (filename) => {
     const response = await fetch('/api/transcribe', {
@@ -286,101 +287,71 @@ const App = () => {
     return -1;
   }, [messages]);
 
-  return (
-    <Layout style={{ minHeight: '100vh', maxHeight: '100vh', overflow: 'hidden' }}>
-      <Header style={{ 
-        background: '#fff', 
-        padding: '0 20px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        height: '64px',
-        position: 'fixed',
-        width: '100%',
-        top: 0,
-        zIndex: 1000,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-      }}>
-        <Title level={3}>Local Chatbot</Title>
-        <ModelSettings 
-          socket={socket} 
-          currentConfig={modelConfig}
-        />
-      </Header>
-      <Layout style={{ marginTop: '64px', height: 'calc(100vh - 64px)' }}>
-        <ChatNavigation 
-          chats={chatList}
-          currentChatId={currentChatId}
-          onChatSelect={handleLoadChat}
-          onNewChat={handleNewChat}
-          onUpdateChatName={handleChatNameEdit}
-          onDeleteChat={handleDeleteChat}
-        />
-        <Layout>
-          <Content style={{ 
-            padding: '12px',
-            height: 'calc(100vh - 64px)',
-            display: 'flex',
-            flexDirection: 'column'
-          }}>
-            <div ref={chatContainerRef} style={{
-              flex: 1,
-              overflowY: 'auto',
-              border: '1px solid #d9d9d9',
-              borderRadius: '4px',
-              padding: '12px',
-              marginBottom: '12px'
-            }}>
-              {isLoading && <Spin style={{ display: 'block', textAlign: 'center', marginBottom: '8px' }} />}
-              <List
-                itemLayout="horizontal"
-                dataSource={messages}
-                style={{ 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  gap: '4px' 
-                }}
-                renderItem={(item, index) => (
-                  <List.Item style={{
-                    justifyContent: item.role === 'user' ? 'flex-end' : 'flex-start',
-                    padding: '4px 0',
-                    margin: 0
-                  }}>
-                    <div style={{ 
-                      width: '95%', 
-                      display: 'flex', 
-                      justifyContent: item.role === 'user' ? 'flex-end' : 'flex-start'
-                    }}>
-                      <MessageItem
-                        item={item}
-                        index={index}
-                        editingIndex={editingIndex}
-                        setEditingIndex={setEditingIndex}
-                        handleEdit={handleEdit}
-                        handleCopy={handleCopy}
-                        handleChangeActiveChild={handleChangeActiveChild}
-                        isLastSystemMessage={index === getLastSystemMessageIndex()}
-                        handleContinue={handleContinue}
-                        handleRegenerate={handleRegenerate}
-                        isLoading={isLoading}
-                      />
-                    </div>
-                  </List.Item>
-                )}
+    return (
+      <Layout className={styleUtils.classNames('app-layout')}>
+        <Header className="app-header">
+          <Title level={3}>Local Chatbot</Title>
+          <ModelSettings 
+            socket={socket} 
+            currentConfig={modelConfig}
+          />
+        </Header>
+        <Layout className={styleUtils.classNames('main-layout')}>
+          <ChatNavigation 
+            chats={chatList}
+            currentChatId={currentChatId}
+            onChatSelect={handleLoadChat}
+            onNewChat={handleNewChat}
+            onUpdateChatName={handleChatNameEdit}
+            onDeleteChat={handleDeleteChat}
+          />
+          <Layout >
+            <Content className="main-content">
+              <div ref={chatContainerRef} className={styleUtils.classNames('chat-container', 'scrollable')}>
+                {isLoading && <Spin className="loading-spinner" />}
+                <List
+                  itemLayout="horizontal"
+                  dataSource={messages}
+                  className="message-list"
+                  renderItem={(item, index) => (
+                    <List.Item className={styleUtils.classNames(
+                      'message-list-item',
+                      item.role === 'user' ? 'message-list-item--user' : 'message-list-item--assistant',
+                    )}>
+                      <div className={styleUtils.classNames(
+                        'message-wrapper',
+                        item.role === 'user' ? 'message-wrapper--user' : 'message-wrapper--assistant'
+                      )}>
+                        <MessageItem
+                          item={item}
+                          index={index}
+                          editingIndex={editingIndex}
+                          setEditingIndex={setEditingIndex}
+                          handleEdit={handleEdit}
+                          handleCopy={handleCopy}
+                          handleChangeActiveChild={handleChangeActiveChild}
+                          isLastSystemMessage={index === getLastSystemMessageIndex()}
+                          handleContinue={handleContinue}
+                          handleRegenerate={handleRegenerate}
+                          isLoading={isLoading}
+                        />
+                      </div>
+                    </List.Item>
+                  )}
+                />
+              </div>
+              <ChatInput
+                inputMessage={inputMessage}
+                setInputMessage={setInputMessage}
+                handleSubmit={handleSubmit}
+                isLoading={isLoading}
+                audioControls={audioControls}
               />
-            </div>
-            <ChatInput
-              inputMessage={inputMessage}
-              setInputMessage={setInputMessage}
-              handleSubmit={handleSubmit}
-              isLoading={isLoading}
-              audioControls={audioControls}
-            />
-          </Content>
+            </Content>
+          </Layout>
         </Layout>
       </Layout>
-    </Layout>
-  );
+    );
 };
 
 export default AppWrapper;

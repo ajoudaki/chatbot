@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Layout, Button, List, Typography, Space, Input, Tooltip } from 'antd';
 import { 
   PlusCircleOutlined,
@@ -7,17 +7,21 @@ import {
   CheckOutlined,
   CloseOutlined
 } from '@ant-design/icons';
-import { useNavigate, useParams } from 'react-router-dom';
+import { styleUtils } from './styles/useTheme';
 
 const { Sider } = Layout;
 const { Text } = Typography;
 
-const ChatNavigation = ({ chats, onNewChat, onUpdateChatName, onDeleteChat }) => {
+const ChatNavigation = ({ 
+  chats, 
+  currentChatId,
+  onNewChat,
+  onChatSelect,
+  onUpdateChatName, 
+  onDeleteChat 
+}) => {
   const [editingChatId, setEditingChatId] = useState(null);
   const [editingName, setEditingName] = useState('');
-  
-  const navigate = useNavigate();
-  const { chatId } = useParams(); // Get chatId from URL
 
   const formatDate = (dateString) => {
     if (!dateString) return '';
@@ -58,19 +62,6 @@ const ChatNavigation = ({ chats, onNewChat, onUpdateChatName, onDeleteChat }) =>
   const handleDelete = (chatId, e) => {
     e.stopPropagation();
     onDeleteChat(chatId);
-    // If we're deleting the current chat, navigate to root
-    if (chatId === window.location.pathname.split('/').pop()) {
-      navigate('/');
-    }
-  };
-
-  const handleChatSelect = (selectedChatId) => {
-    navigate(`/chat/${selectedChatId}`);
-  };
-
-  const handleNewChatClick = () => {
-    onNewChat();
-    navigate('/'); // Navigate to root when starting new chat
   };
 
   const sortedChats = [...chats].sort((a, b) => 
@@ -78,85 +69,68 @@ const ChatNavigation = ({ chats, onNewChat, onUpdateChatName, onDeleteChat }) =>
   );
 
   return (
-    <Sider 
-      width={300} 
-      style={{ 
-        background: '#fff',
-        height: 'calc(100vh - 64px)',
-        overflow: 'hidden'
-      }}
-    >
-      <div style={{ 
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        padding: '20px'
-      }}>
+    <Sider width={300} className="chat-nav-sider">
+      <div className="chat-nav-container">
         <Button 
           type="primary" 
           icon={<PlusCircleOutlined />} 
-          onClick={handleNewChatClick}
-          style={{ marginBottom: '20px' }}
+          onClick={onNewChat}
+          className="new-chat-button"
         >
           New Chat
         </Button>
-        <div style={{ 
-          flex: 1,
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          marginRight: '-8px',
-          paddingRight: '8px'
-        }}>
+        <div className="chat-list-wrapper scrollable">
           <List
             dataSource={sortedChats}
             renderItem={(chat) => (
               <List.Item 
-                onClick={() => handleChatSelect(chat.id)}
-                style={{ 
-                  cursor: 'pointer',
-                  backgroundColor: chat.id === chatId ? '#e6f7ff' : 'transparent',
-                  padding: '10px',
-                  borderRadius: '4px',
-                  marginBottom: '8px'
-                }}
+                onClick={() => onChatSelect(chat.id)}
+                className={styleUtils.classNames(
+                  'chat-list-item',
+                  chat.id === currentChatId && 'chat-list-item--active'
+                )}
               >
-                <div style={{ width: '100%' }}>
+                <div className="chat-item-content">
                   {editingChatId === chat.id ? (
-                    <Space direction="vertical" style={{ width: '100%' }}>
+                    <Space direction="vertical" className="chat-edit-container">
                       <Input
                         value={editingName}
                         onChange={(e) => setEditingName(e.target.value)}
                         onPressEnter={handleEditSubmit}
                         onClick={(e) => e.stopPropagation()}
                         autoFocus
+                        className="chat-edit-input"
                       />
                       <Space>
                         <Button 
                           size="small" 
                           icon={<CheckOutlined />} 
                           onClick={handleEditSubmit}
+                          className="edit-action-button"
                         />
                         <Button 
                           size="small" 
                           icon={<CloseOutlined />} 
                           onClick={handleEditCancel}
+                          className="edit-action-button"
                         />
                       </Space>
                     </Space>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Text ellipsis style={{ maxWidth: '60%' }}>
+                    <div className="chat-info">
+                      <div className="chat-header">
+                        <Text ellipsis className="chat-title">
                           {chat.name || 'New Chat'}
                         </Text>
-                        {chat.id === chatId && (
-                          <Space>
+                        {chat.id === currentChatId && (
+                          <Space className="chat-actions">
                             <Tooltip title="Edit name">
                               <Button
                                 type="text"
                                 icon={<EditOutlined />}
                                 onClick={(e) => handleEditStart(chat, e)}
                                 size="small"
+                                className="chat-action-button"
                               />
                             </Tooltip>
                             <Tooltip title="Delete chat">
@@ -166,11 +140,15 @@ const ChatNavigation = ({ chats, onNewChat, onUpdateChatName, onDeleteChat }) =>
                                 icon={<DeleteOutlined />}
                                 onClick={(e) => handleDelete(chat.id, e)}
                                 size="small"
+                                className="chat-action-button"
                               />
                             </Tooltip>
                           </Space>
                         )}
                       </div>
+                      <Text className="chat-timestamp">
+                        {formatDate(chat.last_modified)}
+                      </Text>
                     </div>
                   )}
                 </div>

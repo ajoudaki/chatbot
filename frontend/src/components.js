@@ -15,7 +15,7 @@ import {
   DeleteOutlined,
   CloseOutlined
 } from '@ant-design/icons';
-
+import { styleUtils } from './styles/useTheme';
 
 const { Text } = Typography;
 const { Header, Content, Footer, Sider } = Layout;
@@ -37,19 +37,14 @@ export const MessageItem = ({
   const [currentSibling, totalSiblings] = item.sibling_info;
   const [isHovered, setIsHovered] = useState(false);
 
-  const actionButtonStyle = {
-    color: '#1890ff',
-    padding: '4px',
-    fontSize: '16px',
-  };
-
   if (index === editingIndex && item.role === 'user') {
     return (
-      <Space direction="vertical" style={{ width: '100%' }}>
+      <Space direction="vertical" className="message-edit-container">
         <Input.TextArea
           value={editContent}
           onChange={(e) => setEditContent(e.target.value)}
           autoSize={{ minRows: 2, maxRows: 6 }}
+          className="message-edit-textarea"
         />
         <Space>
           <Button onClick={() => setEditingIndex(-1)}>Cancel</Button>
@@ -61,44 +56,30 @@ export const MessageItem = ({
 
   return (
     <div 
-      style={{
-        width: '95%',
-        marginBottom: '20px',
-        position: 'relative',
-      }}
+      className={styleUtils.classNames(
+        'message-container',
+        isHovered && 'message-container--hovered'
+      )}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       <div 
-        style={{
-          padding: '10px 15px',
-          borderRadius: '20px',
-          backgroundColor: item.role === 'user' ? '#c0c0c0' : '#f0f0f0',
-          color: item.role === 'user' ? 'white' : 'black',
-        }}
+        className={styleUtils.classNames(
+          'message-content',
+          item.role === 'user' ? 'message-content--user' : 'message-content--assistant'
+        )}
       >
-        <Text style={{ whiteSpace: 'pre-wrap' }}>{item.content}</Text>
+        <Text className="message-text">{item.content}</Text>
       </div>
       {(isLastSystemMessage || isHovered) && (
-        <Space 
-          style={{
-            position: 'absolute',
-            bottom: '-15px',
-            right: '5px',
-            backgroundColor: 'rgba(255, 255, 255, 0.9)',
-            borderRadius: '10px',
-            padding: '5px 10px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-            zIndex: 1,
-          }}
-        >
+        <Space className="message-actions">
           {item.role === 'user' && (
             <Tooltip title="Edit">
               <Button 
                 type="text" 
                 icon={<EditOutlined />} 
                 onClick={() => setEditingIndex(index)}
-                style={actionButtonStyle}
+                className="action-button"
               />
             </Tooltip>
           )}
@@ -107,7 +88,7 @@ export const MessageItem = ({
               type="text" 
               icon={<CopyOutlined />} 
               onClick={() => handleCopy(item.content)}
-              style={actionButtonStyle}
+              className="action-button"
             />
           </Tooltip>
           {totalSiblings > 1 && (
@@ -118,17 +99,17 @@ export const MessageItem = ({
                   icon={<LeftOutlined />} 
                   onClick={() => handleChangeActiveChild(index, 'prev')}
                   disabled={currentSibling === 1}
-                  style={actionButtonStyle}
+                  className="action-button"
                 />
               </Tooltip>
-              <Text>{`${currentSibling} / ${totalSiblings}`}</Text>
+              <Text className="sibling-counter">{`${currentSibling} / ${totalSiblings}`}</Text>
               <Tooltip title="Next version">
                 <Button 
                   type="text" 
                   icon={<RightOutlined />} 
                   onClick={() => handleChangeActiveChild(index, 'next')}
                   disabled={currentSibling === totalSiblings}
-                  style={actionButtonStyle}
+                  className="action-button"
                 />
               </Tooltip>
             </>
@@ -141,7 +122,7 @@ export const MessageItem = ({
                   icon={<PlusCircleOutlined />} 
                   onClick={handleContinue}
                   loading={isLoading}
-                  style={actionButtonStyle}
+                  className="action-button"
                 />
               </Tooltip>
               <Tooltip title="Regenerate">
@@ -150,7 +131,7 @@ export const MessageItem = ({
                   icon={<SyncOutlined />} 
                   onClick={() => handleRegenerate(index)}
                   loading={isLoading}
-                  style={actionButtonStyle}
+                  className="action-button"
                 />
               </Tooltip>
             </>
@@ -165,18 +146,23 @@ export const ChatInput = ({ inputMessage, setInputMessage, handleSubmit, isLoadi
   const { isRecording, audioBlob, isPlaying, startRecording, stopRecording, playRecording, pauseRecording } = audioControls;
 
   return (
-    <Space.Compact style={{ width: '100%' }}>
+    <Space.Compact className="chat-input-container">
       <Input
         value={inputMessage}
         onChange={(e) => setInputMessage(e.target.value)}
         onPressEnter={handleSubmit}
         placeholder="Type your message..."
+        className="chat-input"
       />
       <Button
         type="primary"
         onClick={isRecording ? stopRecording : startRecording}
         icon={<AudioOutlined />}
         danger={isRecording}
+        className={styleUtils.classNames(
+          'audio-button',
+          isRecording && 'audio-button--recording'
+        )}
       >
         {isRecording ? 'Stop Recording' : 'Start Recording'}
       </Button>
@@ -184,11 +170,21 @@ export const ChatInput = ({ inputMessage, setInputMessage, handleSubmit, isLoadi
         <Button
           onClick={isPlaying ? pauseRecording : playRecording}
           icon={isPlaying ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
+          className={styleUtils.classNames(
+            'playback-button',
+            isPlaying && 'playback-button--playing'
+          )}
         >
           {isPlaying ? 'Pause' : 'Play'}
         </Button>
       )}
-      <Button type="primary" onClick={handleSubmit} icon={<SendOutlined />} loading={isLoading}>
+      <Button 
+        type="primary" 
+        onClick={handleSubmit} 
+        icon={<SendOutlined />} 
+        loading={isLoading}
+        className="send-button"
+      >
         Send
       </Button>
     </Space.Compact>
