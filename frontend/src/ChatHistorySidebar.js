@@ -171,9 +171,6 @@ const ChatNavigation = ({ chats, onNewChat, onUpdateChatName, onDeleteChat }) =>
                           </Space>
                         )}
                       </div>
-                      <Text type="secondary" style={{ fontSize: '12px' }}>
-                        {formatDate(chat.last_modified)}
-                      </Text>
                     </div>
                   )}
                 </div>
