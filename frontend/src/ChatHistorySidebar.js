@@ -3,6 +3,7 @@ import { Layout, Button, List, Typography, Space, Input, Tooltip } from 'antd';
 import { 
   PlusCircleOutlined,
   EditOutlined,
+  FormOutlined,
   DeleteOutlined,
   CheckOutlined,
   CloseOutlined
@@ -71,14 +72,13 @@ const ChatNavigation = ({
   return (
     <Sider width={300} className="chat-nav-sider">
       <div className="chat-nav-container">
-        <Button 
-          type="primary" 
-          icon={<PlusCircleOutlined />} 
-          onClick={onNewChat}
-          className="new-chat-button"
-        >
-          New Chat
-        </Button>
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <Button 
+              icon={<FormOutlined />} 
+              onClick={onNewChat}
+              className="new-chat-button"
+            />
+        </div>
         <div className="chat-list-wrapper scrollable">
           <List
             dataSource={sortedChats}

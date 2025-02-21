@@ -48,7 +48,7 @@ export const MessageItem = ({
         />
         <Space>
           <Button onClick={() => setEditingIndex(-1)}>Cancel</Button>
-          <Button onClick={() => handleEdit(index, editContent)} type="primary">Submit Edit</Button>
+          <Button onClick={() => handleEdit(index, editContent)} type="primary">Send</Button>
         </Space>
       </Space>
     );
@@ -164,9 +164,8 @@ export const ChatInput = ({ inputMessage, setInputMessage, handleSubmit, isLoadi
           'audio-button',
           isRecording && 'audio-button--recording'
         )}
-      >
-        {isRecording ? 'Stop Recording' : 'Start Recording'}
-      </Button>
+      />
+        
       {audioBlob && (
         <Button
           onClick={isPlaying ? pauseRecording : playRecording}
@@ -185,9 +184,7 @@ export const ChatInput = ({ inputMessage, setInputMessage, handleSubmit, isLoadi
         icon={<SendOutlined />} 
         loading={isLoading}
         className="send-button"
-      >
-        Send
-      </Button>
+      />
     </Space.Compact>
   );
 };

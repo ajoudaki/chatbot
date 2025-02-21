@@ -149,9 +149,7 @@ export const ModelSettings = ({ socket, currentConfig }) => {
       placement="bottomRight"
       className="settings-dropdown-container"
     >
-      <Button icon={<SettingOutlined />} className="settings-trigger-button">
-        Model Settings
-      </Button>
+      <Button icon={<SettingOutlined />} className="settings-trigger-button"/>
     </Dropdown>
   );
 };
