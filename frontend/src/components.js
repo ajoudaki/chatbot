@@ -58,6 +58,7 @@ export const MessageItem = ({
     <div 
       className={styleUtils.classNames(
         'message-container',
+        item.role === 'user' ? 'message-container--user' : 'message-container--assistant',
         isHovered && 'message-container--hovered'
       )}
       onMouseEnter={() => setIsHovered(true)}

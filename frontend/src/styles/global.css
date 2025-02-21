@@ -237,30 +237,6 @@
   border-color: var(--border-color);
 }
 
-/* ---- */ 
-
-/* ------ */ 
-
-.message-content {
-  white-space: pre-wrap;
-  display: inline-block;  /* Changed from block to inline-block */
-  max-width: 100%;       /* Ensure it doesn't overflow container */
-  padding: var(--spacing-md) var(--spacing-lg);
-  border-radius: var(--border-radius-lg);
-  position: relative;
-  min-width: 120px;      /* Add minimum width for very short messages */
-}
-
-
-.message-content--user {
-  background-color: var(--user-message-bg);
-  color: var(--background-primary);
-}
-
-.message-content--assistant {
-  background-color: var(--assistant-message-bg);
-  color: var(--text-primary);
-}
 
 .message-container {
   width: 95%;
@@ -280,6 +256,27 @@
 
 .message-container--assistant {
   justify-content: flex-start;  /* Align assistant messages to the left */
+}
+
+
+.message-content {
+  white-space: pre-wrap;
+  display: inline-block;  /* Changed from block to inline-block */
+  max-width: 100%;       /* Ensure it doesn't overflow container */
+  position: relative;
+  min-width: 120px;      /* Add minimum width for very short messages */
+  text-align: left; /* This ensures text is left aligned */
+}
+
+
+.message-content--user {
+  background-color: var(--user-message-bg);
+  color: var(--background-primary);
+}
+
+.message-content--assistant {
+  background-color: var(--assistant-message-bg);
+  color: var(--text-primary);
 }
 
 
