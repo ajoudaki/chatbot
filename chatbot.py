@@ -366,7 +366,11 @@ class ChatBot:
         max_memory = {0: "24GB", 1: "24GB"}
         
         # Load the tokenizer
-        tokenizer = AutoTokenizer.from_pretrained(self.model_name, trust_remote_code=True)
+        tokenizer = AutoTokenizer.from_pretrained(
+            self.model_name,
+            use_fast=True,
+            trust_remote_code=True,
+        )
         if tokenizer.pad_token_id is None:
             tokenizer.pad_token_id = tokenizer.eos_token_id
         
@@ -374,7 +378,7 @@ class ChatBot:
         model = AutoModelForCausalLM.from_pretrained(
             self.model_name,
             quantization_config=bnb_config,
-            device_map="balanced",         # distribute layers across GPUs
+            device_map="auto",         # distribute layers across GPUs
             max_memory=None,         # force all modules onto the GPUs
             torch_dtype=torch.float16,     # load weights in FP16
             trust_remote_code=True         # needed for custom Qwen implementations
@@ -425,13 +429,13 @@ class ChatBot:
         
         input_ids = self.tokenizer.encode(prompt, return_tensors='pt').to(first_device)
         
-        with torch.no_grad():
+        with torch.inference_mode():
             output = self.model.generate(
                 input_ids, 
                 max_new_tokens=30,  # Limit to a short response
                 do_sample=True,
-                temperature=0.6,  # Slightly randomized but still focused
-                top_p=0.95,
+                temperature=self.temperature,   # Slightly randomized but still focused
+                top_p=self.top_p,
                 pad_token_id=self.tokenizer.eos_token_id
             )
         
@@ -456,7 +460,7 @@ class ChatBot:
     def generate_response(self, messages, ):
         logger.info("Generating response")
         total_tokens = self.generation_length
-        chunk_size = 20
+        chunk_size = 50
         formatted_input = self.tokenizer.apply_chat_template(
             messages, 
             tokenize=False,
@@ -473,14 +477,16 @@ class ChatBot:
         while remaining_tokens > 0:
             tokens_to_generate = min(chunk_size, remaining_tokens)
             logger.debug(f"Generating {tokens_to_generate} tokens")
-            with torch.no_grad():
+            with torch.inference_mode():
                 output = self.model.generate(
                     input_ids, 
                     max_new_tokens=tokens_to_generate, 
                     temperature=self.temperature,  # Slightly randomized but still focused
                     top_p=self.top_p,
                     do_sample=True, 
-                    pad_token_id=self.tokenizer.eos_token_id)
+                    pad_token_id=self.tokenizer.eos_token_id,
+                    use_cache=True,
+                )
             
             new_tokens = output[0, input_ids.shape[1]:]
             chunk_text = self.tokenizer.decode(new_tokens, skip_special_tokens=True)
