@@ -314,28 +314,20 @@ const App = () => {
                   dataSource={messages}
                   className="message-list"
                   renderItem={(item, index) => (
-                    <List.Item className={styleUtils.classNames(
-                      'message-list-item',
-                      item.role === 'user' ? 'message-list-item--user' : 'message-list-item--assistant',
-                    )}>
-                      <div className={styleUtils.classNames(
-                        'message-wrapper',
-                        item.role === 'user' ? 'message-wrapper--user' : 'message-wrapper--assistant'
-                      )}>
-                        <MessageItem
-                          item={item}
-                          index={index}
-                          editingIndex={editingIndex}
-                          setEditingIndex={setEditingIndex}
-                          handleEdit={handleEdit}
-                          handleCopy={handleCopy}
-                          handleChangeActiveChild={handleChangeActiveChild}
-                          isLastSystemMessage={index === getLastSystemMessageIndex()}
-                          handleContinue={handleContinue}
-                          handleRegenerate={handleRegenerate}
-                          isLoading={isLoading}
-                        />
-                      </div>
+                    <List.Item>
+                    <MessageItem
+                      item={item}
+                      index={index}
+                      editingIndex={editingIndex}
+                      setEditingIndex={setEditingIndex}
+                      handleEdit={handleEdit}
+                      handleCopy={handleCopy}
+                      handleChangeActiveChild={handleChangeActiveChild}
+                      isLastSystemMessage={index === getLastSystemMessageIndex()}
+                      handleContinue={handleContinue}
+                      handleRegenerate={handleRegenerate}
+                      isLoading={isLoading}
+                    />
                     </List.Item>
                   )}
                 />
