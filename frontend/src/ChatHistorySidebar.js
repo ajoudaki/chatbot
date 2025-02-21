@@ -146,9 +146,6 @@ const ChatNavigation = ({
                           </Space>
                         )}
                       </div>
-                      <Text className="chat-timestamp">
-                        {formatDate(chat.last_modified)}
-                      </Text>
                     </div>
                   )}
                 </div>
