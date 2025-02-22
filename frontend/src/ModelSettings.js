@@ -1,7 +1,7 @@
+// ModelSettings.js
 import React, { useState } from 'react';
-import { Dropdown, Button, Modal, Form, InputNumber, Select, message, Slider } from 'antd';
+import { Dropdown, Button, Form, Select, Slider } from 'antd';
 import { SettingOutlined } from '@ant-design/icons';
-import { styleUtils } from './styles/useTheme';
 
 const MODEL_OPTIONS = [
   { label: 'DeepSeek-7B', value: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-7B' },
@@ -14,41 +14,23 @@ const MODEL_OPTIONS = [
   { label: 'Mistral-24B', value: 'mistralai/Mistral-Small-24B-Instruct-2501'},
 ];
 
-export const ModelSettings = ({ socket, currentConfig }) => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+export const ModelSettings = ({ currentConfig, onUpdateSettings, isConfigLoading }) => {
   const [form] = Form.useForm();
-  const [loading, setLoading] = useState(false);
-
-  const showModal = () => {
-    form.setFieldsValue(currentConfig);
-    setIsModalOpen(true);
-  };
-
-  const handleCancel = () => {
-    setIsModalOpen(false);
-    form.resetFields();
-  };
+  const [isDropdownVisible, setIsDropdownVisible] = useState(false);
 
   const handleSubmit = async () => {
     try {
-      setLoading(true);
       const values = await form.validateFields();
-      
-      socket.emit('update_model_config', values);
-      
-      socket.once('model_config_updated', (response) => {
-        setLoading(false);
-        if (response.success) {
-          message.success('Model settings updated successfully');
-          setIsModalOpen(false);
-        } else {
-          message.error(response.error || 'Failed to update model settings');
-        }
-      });
+      onUpdateSettings(values);
+      setIsDropdownVisible(false);
     } catch (error) {
-      setLoading(false);
       console.error('Validation failed:', error);
     }
+  };
+
+  const handleCancel = () => {
+    form.resetFields();
+    setIsDropdownVisible(false);
   };
 
   const menu = (
@@ -66,7 +48,8 @@ export const ModelSettings = ({ socket, currentConfig }) => {
         >
           <Select 
             options={MODEL_OPTIONS}
-            className="settings-select" 
+            className="settings-select"
+            disabled={isConfigLoading}
           />
         </Form.Item>
 
@@ -87,6 +70,7 @@ export const ModelSettings = ({ socket, currentConfig }) => {
               4096: '4096'
             }}
             className="settings-slider"
+            disabled={isConfigLoading}
           />
         </Form.Item>
 
@@ -106,6 +90,7 @@ export const ModelSettings = ({ socket, currentConfig }) => {
               2: '2'
             }}
             className="settings-slider"
+            disabled={isConfigLoading}
           />
         </Form.Item>
 
@@ -125,16 +110,22 @@ export const ModelSettings = ({ socket, currentConfig }) => {
               1: '1'
             }}
             className="settings-slider"
+            disabled={isConfigLoading}
           />
         </Form.Item>
 
         <Form.Item className="settings-actions">
           <div className="settings-buttons">
-            <Button onClick={handleCancel}>
+            <Button onClick={handleCancel} disabled={isConfigLoading}>
               Cancel
             </Button>
-            <Button type="primary" onClick={handleSubmit} loading={loading}>
-              Save Changes
+            <Button 
+              type="primary" 
+              onClick={handleSubmit} 
+              loading={isConfigLoading}
+              disabled={isConfigLoading}
+            >
+              {isConfigLoading ? 'Loading Model...' : 'Save Changes'}
             </Button>
           </div>
         </Form.Item>
@@ -148,8 +139,14 @@ export const ModelSettings = ({ socket, currentConfig }) => {
       trigger={['click']}
       placement="bottomRight"
       className="settings-dropdown-container"
+      visible={isDropdownVisible}
+      onVisibleChange={setIsDropdownVisible}
     >
-      <Button icon={<SettingOutlined />} className="settings-trigger-button"/>
+      <Button 
+        icon={<SettingOutlined />} 
+        className="settings-trigger-button"
+        loading={isConfigLoading}
+      />
     </Dropdown>
   );
 };

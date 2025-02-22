@@ -29,6 +29,7 @@ const App = () => {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [modelConfigLoading, setModelConfigLoading] = useState(false);
   const [editingIndex, setEditingIndex] = useState(-1);
   const [chatList, setChatList] = useState([]);
   const [currentChatId, setCurrentChatId] = useState(null);
@@ -56,6 +57,7 @@ const App = () => {
     if (!socket) return;
 
     socket.on('model_config_updated', (data) => {
+      setModelConfigLoading(false);
       if (data.success) {
         setModelConfig(data.config);
         message.success('Model settings updated successfully');
@@ -144,6 +146,11 @@ const App = () => {
       socket.emit('save_chat');
     }
   }, [messages, currentChatId, isChatSaved, socket]);
+
+  const handleUpdateModelSettings = (values) => {
+    setModelConfigLoading(true);
+    socket.emit('update_model_config', values);
+  };
 
   const handleDeleteChat = (chatId) => {
     Modal.confirm({
@@ -287,34 +294,35 @@ const App = () => {
     return -1;
   }, [messages]);
 
-    return (
-      <Layout className={styleUtils.classNames('app-layout')}>
-        <Header className="app-header">
-          <Title level={3}>Local Chatbot</Title>
-          <ModelSettings 
-            socket={socket} 
-            currentConfig={modelConfig}
-          />
-        </Header>
-        <Layout className={styleUtils.classNames('main-layout')}>
-          <ChatNavigation 
-            chats={chatList}
-            currentChatId={currentChatId}
-            onChatSelect={handleLoadChat}
-            onNewChat={handleNewChat}
-            onUpdateChatName={handleChatNameEdit}
-            onDeleteChat={handleDeleteChat}
-          />
-          <Layout >
-            <Content className="main-content">
-              <div ref={chatContainerRef} className={styleUtils.classNames('chat-container', 'scrollable')}>
-                {isLoading && <Spin className="loading-spinner" />}
-                <List
-                  itemLayout="horizontal"
-                  dataSource={messages}
-                  className="message-list"
-                  renderItem={(item, index) => (
-                    <List.Item style = {{border: "none", padding: "4px"}}>
+  return (
+    <Layout className={styleUtils.classNames('app-layout')}>
+      <Header className="app-header">
+        <Title level={3}>Local Chatbot</Title>
+        <ModelSettings 
+          currentConfig={modelConfig}
+          onUpdateSettings={handleUpdateModelSettings}
+          isConfigLoading={modelConfigLoading}
+        />
+      </Header>
+      <Layout className={styleUtils.classNames('main-layout')}>
+        <ChatNavigation 
+          chats={chatList}
+          currentChatId={currentChatId}
+          onChatSelect={handleLoadChat}
+          onNewChat={handleNewChat}
+          onUpdateChatName={handleChatNameEdit}
+          onDeleteChat={handleDeleteChat}
+        />
+        <Layout>
+          <Content className="main-content">
+            <div ref={chatContainerRef} className={styleUtils.classNames('chat-container', 'scrollable')}>
+              {isLoading && <Spin className="loading-spinner" />}
+              <List
+                itemLayout="horizontal"
+                dataSource={messages}
+                className="message-list"
+                renderItem={(item, index) => (
+                  <List.Item style={{ border: "none", padding: "5px" }}>
                     <MessageItem
                       item={item}
                       index={index}
@@ -328,22 +336,22 @@ const App = () => {
                       handleRegenerate={handleRegenerate}
                       isLoading={isLoading}
                     />
-                    </List.Item>
-                  )}
-                />
-              </div>
-              <ChatInput
-                inputMessage={inputMessage}
-                setInputMessage={setInputMessage}
-                handleSubmit={handleSubmit}
-                isLoading={isLoading}
-                audioControls={audioControls}
+                  </List.Item>
+                )}
               />
-            </Content>
-          </Layout>
+            </div>
+            <ChatInput
+              inputMessage={inputMessage}
+              setInputMessage={setInputMessage}
+              handleSubmit={handleSubmit}
+              isLoading={isLoading}
+              audioControls={audioControls}
+            />
+          </Content>
         </Layout>
       </Layout>
-    );
+    </Layout>
+  );
 };
 
 export default AppWrapper;
