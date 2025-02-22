@@ -85,10 +85,12 @@
   padding-bottom: var(--spacing-xl);
 }
 
+
 .message-list {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
+  border: none;
 }
 
 .chat-input-wrapper {
@@ -192,19 +194,20 @@
 
 .message-content {
   white-space: pre-wrap;
+  padding: var(--spacing-md) var(--spacing-lg);
 }
 
 .message-content--user {
   padding: var(--spacing-md) var(--spacing-lg);
-  border-radius: var(--border-radius-lg);
   background-color: var(--user-message-bg);
+  border-radius: var(--border-radius-lg);
   color: var(--background-primary);
   align-self: flex-end;     /* Shifts the bubble to the right side */
   text-align: right;        /* Aligns text inside the bubble to the right */
 }
 
 .message-content--assistant {
-  background-color: var(--assistant-message-bg);
+  background: none;
   color: var(--text-primary);
   align-self: flex-start;
   text-align: left;
@@ -240,10 +243,10 @@
 
 .message-container {
   width: 95%;
-  margin-bottom: var(--spacing-xl);
   position: relative;
   display: flex;        /* Add flex display */
   flex-direction: row;  /* Ensure horizontal layout */
+  border: none;
 }
 
 .message-container--hovered {
@@ -275,7 +278,7 @@
 }
 
 .message-content--assistant {
-  background-color: var(--assistant-message-bg);
+  background: none;
   color: var(--text-primary);
 }
 

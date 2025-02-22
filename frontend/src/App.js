@@ -314,7 +314,7 @@ const App = () => {
                   dataSource={messages}
                   className="message-list"
                   renderItem={(item, index) => (
-                    <List.Item>
+                    <List.Item style = {{border: "none", padding: "4px"}}>
                     <MessageItem
                       item={item}
                       index={index}
